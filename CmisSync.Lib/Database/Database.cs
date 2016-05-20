@@ -94,7 +94,7 @@ namespace CmisSync.Lib.Database
             this.localPathPrefix = localPathPrefix;
             
             this.localPathPrefixSize = localPathPrefix.Length;
-            if ( ! remotePathPrefix.Equals("/"))
+            if ( ! remotePathPrefix.Equals(Cmis.CmisUtils.CMIS_FILE_SEPARATOR))
             {
                 this.localPathPrefixSize += 1;
             }
