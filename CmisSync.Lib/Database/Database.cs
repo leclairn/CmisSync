@@ -92,7 +92,13 @@ namespace CmisSync.Lib.Database
         {
             this.databaseFileName = databaseFileName;
             this.localPathPrefix = localPathPrefix;
-            this.localPathPrefixSize = localPathPrefix.Length + 1;
+            
+            this.localPathPrefixSize = localPathPrefix.Length;
+            if ( ! remotePathPrefix.Equals("/"))
+            {
+                this.localPathPrefixSize += 1;
+            }
+
             this.remotePathPrefix = remotePathPrefix;
             this.remotePathPrefixSize = remotePathPrefix.Length + 1;
         }
