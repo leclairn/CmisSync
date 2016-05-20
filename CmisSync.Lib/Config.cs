@@ -32,6 +32,11 @@ namespace CmisSync.Lib
     public class Config
     {
         /// <summary>
+        /// Name of the folder where folders get synchronized to by default.
+        /// </summary>
+        public static readonly string SYNC_ROOTFOLDER_NAME = "CmisSync";
+
+        /// <summary>
         /// The current config schema version.
         /// </summary>
         public const int SchemaVersion = 1;
@@ -149,13 +154,13 @@ namespace CmisSync.Lib
 
 
         /// <summary>
-        /// Path where the synchronized folders are stored by default.
+        /// Path of the folder where the synchronized folders are stored to by default.
         /// </summary>
         public string FoldersPath
         {
             get
             {
-                return Path.Combine(HomePath, "CmisSync");
+                return Path.Combine(HomePath, SYNC_ROOTFOLDER_NAME);
             }
         }
 
