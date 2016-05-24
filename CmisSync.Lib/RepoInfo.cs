@@ -18,7 +18,19 @@ namespace CmisSync.Lib
         /// Name of the local directory within the CmisSync directory.
         /// For instance: "User Homes"
         /// </summary>
-        public string Name { get; set; }
+        public string Name
+        {
+            get
+            {
+                return name;
+            }
+            set
+            {
+                // Remove trailing slash if any.
+                name = value.TrimEnd(Path.DirectorySeparatorChar);
+            }
+        }
+        private string name;
 
 
         /// <summary>
@@ -66,7 +78,19 @@ namespace CmisSync.Lib
         /// <summary>
         /// In case the user choose to put the synchronized folder outside of the CmisSync directory, this stores the path to it.
         /// </summary>
-        public string TargetDirectory { get; set; }
+        public string TargetDirectory
+        {
+            get
+            {
+                return targetDirectory;
+            }
+            set
+            {
+                // Remove trailing slash if any.
+                targetDirectory = value.TrimEnd(Path.DirectorySeparatorChar);
+            }
+        }
+        private string targetDirectory;
 
 
         /// <summary>
