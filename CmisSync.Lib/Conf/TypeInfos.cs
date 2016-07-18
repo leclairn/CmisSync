@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace Conf
+namespace CmisSync.Lib.Conf
 {
     public class TypeInfos
     {

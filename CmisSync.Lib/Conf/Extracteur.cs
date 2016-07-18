@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Conf
+namespace CmisSync.Lib.Conf
 {
     public enum Extracteur
     {

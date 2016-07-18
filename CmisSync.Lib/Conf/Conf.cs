@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
-namespace Conf
+namespace CmisSync.Lib.Conf
 {
     public class Conf
     {

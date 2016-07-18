@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System;
 using System.Runtime.InteropServices;
 
-namespace Conf
+namespace CmisSync.Lib.Conf
 {
     /// <summary>
     /// Helper class to detect the MIME type based on the file header signature.

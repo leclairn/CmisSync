@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
-namespace Conf
+namespace CmisSync.Lib.Conf
 {
     public class TypeExtracteurs
     {
@@ -15,7 +15,7 @@ namespace Conf
         public string name;
         public List<Extracteur> extracteurs;
         public bool forceSynchro;
-        
+
         public TypeExtracteurs()
         {
             extracteurs = new List<Extracteur>();
