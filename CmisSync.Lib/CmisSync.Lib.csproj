@@ -67,6 +67,14 @@
   <ItemGroup>
     <Compile Include="ChunkedStream.cs" />
     <Compile Include="Cmis\CmisProfile.cs" />
+    <Compile Include="Conf\Application.cs" />
+    <Compile Include="Conf\Conf.cs" />
+    <Compile Include="Conf\ContentType.cs" />
+    <Compile Include="Conf\Extracteur.cs" />
+    <Compile Include="Conf\MimeSniffer.cs" />
+    <Compile Include="Conf\TypeExtracteurs.cs" />
+    <Compile Include="Conf\TypeInfos.cs" />
+    <Compile Include="Conf\TypeSynchro.cs" />
     <Compile Include="Database\DatabaseMigrationBase.cs" />
     <Compile Include="Database\DatabaseMigration.cs" />
     <Compile Include="Events\ActiveActivitiesManager.cs" />
