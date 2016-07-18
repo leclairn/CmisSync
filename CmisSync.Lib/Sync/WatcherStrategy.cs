@@ -32,22 +32,39 @@ namespace CmisSync.Lib.Sync
                 Logger.Debug(remoteFolder + " : " + localFolder);
                 bool locallyModified = false;
                 SleepWhileSuspended();
-                Queue<FileSystemEventArgs> changeQueue = repo.Watcher.GetChangeQueue();
+                Queue<WatcherEvent> changeQueue = repo.Watcher.GetChangeQueue();
                 repo.Watcher.Clear();
                 if (Logger.IsDebugEnabled)
                 {
-                    foreach (FileSystemEventArgs change in changeQueue)
+                    foreach (WatcherEvent change in changeQueue)
                     {
-                        if (change is CmisSync.Lib.Watcher.MovedEventArgs) Logger.DebugFormat("Moved: {0} -> {1}", ((CmisSync.Lib.Watcher.MovedEventArgs)change).OldFullPath, change.FullPath);
-                        else if (change is RenamedEventArgs) Logger.DebugFormat("Renamed: {0} -> {1}", ((RenamedEventArgs)change).OldFullPath, change.FullPath);
-                        else Logger.DebugFormat("{0}: {1}", change.ChangeType, change.FullPath);
+                        if (change.GetFileSystemEventArgs() is CmisSync.Lib.Watcher.MovedEventArgs)
+                        {
+                            Logger.DebugFormat("Moved: {0} -> {1}",
+                                ((CmisSync.Lib.Watcher.MovedEventArgs)change.GetFileSystemEventArgs()).OldFullPath,
+                                change.GetFileSystemEventArgs().FullPath);
+                        }
+                        else if (change.GetFileSystemEventArgs() is RenamedEventArgs)
+                        {
+                            Logger.DebugFormat("Renamed: {0} -> {1}",
+                                ((RenamedEventArgs)change.GetFileSystemEventArgs()).OldFullPath,
+                                change.GetFileSystemEventArgs().FullPath);
+                        }
+                        else
+                        {
+                            Logger.DebugFormat("{0}: {1}",
+                                change.GetFileSystemEventArgs().ChangeType,
+                                change.GetFileSystemEventArgs().FullPath);
+                        }
                     }
                 }
                 while (changeQueue.Count > 0)
                 {
                     activityListener.ActivityStarted();
-                    FileSystemEventArgs earliestChange = changeQueue.Dequeue();
-                    string pathname = earliestChange.FullPath;
+                    try
+                    {
+                    WatcherEvent earliestChange = changeQueue.Dequeue();
+                    string pathname = earliestChange.GetFileSystemEventArgs().FullPath;
                     if (!pathname.StartsWith(localFolder))
                     {
                         Logger.DebugFormat("Path {0} does not apply for target {1}.", pathname, localFolder);
@@ -58,26 +75,29 @@ namespace CmisSync.Lib.Sync
                     {
                         continue;
                     }
-                    if (earliestChange is CmisSync.Lib.Watcher.MovedEventArgs)
+                    if (earliestChange.GetFileSystemEventArgs() is CmisSync.Lib.Watcher.MovedEventArgs)
                     {
                         // Move
-                        CmisSync.Lib.Watcher.MovedEventArgs change = (CmisSync.Lib.Watcher.MovedEventArgs)earliestChange;
+                        CmisSync.Lib.Watcher.MovedEventArgs change =
+                            (CmisSync.Lib.Watcher.MovedEventArgs)earliestChange.GetFileSystemEventArgs();
                         Logger.DebugFormat("Processing 'Moved': {0} -> {1}.", change.OldFullPath, pathname);
-                        bool done = WatchSyncMove(remoteFolder, localFolder, change.OldFullPath, pathname);
+                        bool done = WatchSyncMove(remoteFolder, localFolder, change.OldFullPath, pathname, earliestChange.GetGrace());
                         locallyModified |= !done;
                     }
-                    else if (earliestChange is RenamedEventArgs)
+                    else if (earliestChange.GetFileSystemEventArgs() is RenamedEventArgs)
                     {
                         // Rename
-                        RenamedEventArgs change = (RenamedEventArgs)earliestChange;
+                        RenamedEventArgs change =
+                            (RenamedEventArgs)earliestChange.GetFileSystemEventArgs();
                         Logger.DebugFormat("Processing 'Renamed': {0} -> {1}.", change.OldFullPath, pathname);
-                        bool done = WatchSyncMove(remoteFolder, localFolder, change.OldFullPath, pathname);
+                        bool done = WatchSyncMove(remoteFolder, localFolder, change.OldFullPath, pathname, earliestChange.GetGrace());
                         locallyModified |= !done;
                     }
                     else
                     {
-                        Logger.DebugFormat("Processing '{0}': {1}.", earliestChange.ChangeType, pathname);
-                        switch (earliestChange.ChangeType)
+                        Logger.DebugFormat("Processing '{0}': {1}.",
+                            earliestChange.GetFileSystemEventArgs().ChangeType, pathname);
+                        switch (earliestChange.GetFileSystemEventArgs().ChangeType)
                         {
                             case WatcherChangeTypes.Created:
                             case WatcherChangeTypes.Changed:
@@ -85,13 +105,19 @@ namespace CmisSync.Lib.Sync
                                 locallyModified |= !done;
                                 break;
                             case WatcherChangeTypes.Deleted:
-                                done = WatcherSyncDelete(remoteFolder, localFolder, pathname);
+                                done = WatcherSyncDelete(remoteFolder, localFolder, pathname, earliestChange.GetGrace());
                                 locallyModified |= !done;
                                 break;
                             default:
-                                Logger.ErrorFormat("Ignoring change with unhandled type -> '{0}': {1}.", earliestChange.ChangeType, pathname);
+                                Logger.ErrorFormat("Ignoring change with unhandled type -> '{0}': {1}.",
+                                    earliestChange.GetFileSystemEventArgs().ChangeType, pathname);
                                 break;
                         }
+                    }
+                    }
+                    catch(Exception ex)
+                    {
+                        locallyModified = true;
                     }
                     activityListener.ActivityStopped();
                 }
@@ -103,16 +129,23 @@ namespace CmisSync.Lib.Sync
             /// An event was received from the filesystem watcher, analyze the change and apply it.
             /// <returns>Whether the move has now been synchronized, so that no further action is needed</returns>
             /// </summary>
-            private bool WatchSyncMove(string remoteFolder, string localFolder, string oldPathname, string newPathname)
+            private bool WatchSyncMove(string remoteFolder, string localFolder, string oldPathname, string newPathname, Grace grace)
             {
                 bool success = true;
                 SleepWhileSuspended();
 
+                try
+                {
                 // Old item.
                 string oldDirectory = Path.GetDirectoryName(oldPathname);
                 string oldFilename = Path.GetFileName(oldPathname);
                 string oldLocalName = oldPathname.Substring(localFolder.Length + 1);
                 SyncItem oldItem = database.GetSyncItemFromLocalPath(oldPathname);
+                    if (oldItem == null)
+                    {
+                        // The change is about a file which was not in database yet, we can't move it. Further action is needed.
+                        return false;
+                    }
                 string oldRemoteName = oldItem.RemotePath;
                 string oldRemoteBaseName = CmisUtils.GetUpperFolderOfCmisPath(oldRemoteName);
                 bool oldPathnameWorthSyncing = Utils.WorthSyncing(oldDirectory, oldFilename, repoInfo);
@@ -135,8 +168,6 @@ namespace CmisSync.Lib.Sync
                     Logger.ErrorFormat("Not a valid rename/move: {0} -> {1}", oldPathname, newPathname);
                     return true; // It is not our problem that watcher data is not valid.
                 }
-                try
-                {
                     if (oldPathnameWorthSyncing && newPathnameWorthSyncing)
                     {
                         if (database.ContainsLocalFile(oldPathname))
@@ -144,7 +175,7 @@ namespace CmisSync.Lib.Sync
                             if (database.ContainsLocalFile(newPathname))
                             {
                                 //database already contains path so revert back to delete/update
-                                success &= WatcherSyncDelete(remoteFolder, localFolder, oldPathname);
+                                success &= WatcherSyncDelete(remoteFolder, localFolder, oldPathname, grace);
                                 success &= WatcherSyncUpdate(remoteFolder, localFolder, newPathname);
                             }
                             else
@@ -170,7 +201,7 @@ namespace CmisSync.Lib.Sync
                             if (database.ContainsFolder(newPathname))
                             {
                                 //database already contains path so revert back to delete/update
-                                success &= WatcherSyncDelete(remoteFolder, localFolder, oldPathname);
+                                success &= WatcherSyncDelete(remoteFolder, localFolder, oldPathname, grace);
                                 success &= WatcherSyncUpdate(remoteFolder, localFolder, newPathname);
                             }
                             else
@@ -200,7 +231,7 @@ namespace CmisSync.Lib.Sync
                     else if (oldPathnameWorthSyncing && !newPathnameWorthSyncing)
                     {
                         //New path not worth syncing
-                        success &= WatcherSyncDelete(remoteFolder, localFolder, oldPathname);
+                        success &= WatcherSyncDelete(remoteFolder, localFolder, oldPathname, grace);
                     }
                     else if (!oldPathnameWorthSyncing && newPathnameWorthSyncing)
                     {
@@ -212,10 +243,15 @@ namespace CmisSync.Lib.Sync
                         //Neither old or new path worth syncing
                     }
                 }
+                catch (FileNotFoundException e)
+                {
+                    success = false;
+                    Logger.Warn("Could process watcher sync move, file or folder not found: " + oldPathname + " -> " + newPathname, e);
+                }
                 catch (Exception e)
                 {
                     success = false;
-                    ProcessRecoverableException("Could process watcher sync move: " + oldPathname + " -> " + newPathname, e);
+                    ProcessRecoverableException("Could not process watcher sync move: " + oldPathname + " -> " + newPathname, e);
                 }
                 return success;
             }
@@ -238,16 +274,13 @@ namespace CmisSync.Lib.Sync
                 }
                 try
                 {
-                    string localName = localPath.Substring(localFolder.Length + 1);
-                    bool isFolder = Utils.IsFolder(localPath);
 
-                    SyncItem item = SyncItemFactory.CreateFromLocalPath(localPath, isFolder, repoInfo, database);
-                    
                     // Get the remote directory, needed by the update method.
-                    string remoteName = item.RemotePath;
                     IFolder remoteBase = null;
                     if (File.Exists(localPath) || Directory.Exists(localPath))
                     {
+                        bool isFolder = Utils.IsFolder(localPath);
+                        SyncItem item = SyncItemFactory.CreateFromLocalPath(localPath, isFolder, repoInfo, database);
                         string remoteBaseName = CmisUtils.GetUpperFolderOfCmisPath(item.RemotePath);
                         remoteBase = (IFolder)session.GetObjectByPath(remoteBaseName);
                         if (null == remoteBase)
@@ -321,13 +354,13 @@ namespace CmisSync.Lib.Sync
             }
 
             /// <summary>
-            /// Watchers the sync delete.
+            /// Process a detected deletion.
             /// </summary>
             /// <param name="remoteFolder">Remote folder.</param>
             /// <param name="localFolder">Local folder.</param>
             /// <param name="pathname">Pathname.</param>
             /// <returns>Whether the delete has now been synchronized, so that no further action is needed</returns>
-            private bool WatcherSyncDelete(string remoteFolder, string localFolder, string pathname)
+            private bool WatcherSyncDelete(string remoteFolder, string localFolder, string pathname, Grace grace)
             {
                 SleepWhileSuspended();
 
@@ -337,10 +370,10 @@ namespace CmisSync.Lib.Sync
                 // 3. Rename ~wrdxxxx.tmp to Example.doc
                 // See https://support.microsoft.com/en-us/kb/211632
                 // So, upon deletion, wait a bit for any save operation to hopefully finalize, then sync.
-                // This is not 100% foolproof, as saving can last for more than GRACE_TIME, but probably
+                // This is not 100% foolproof, as saving can last for more than the grace time, but probably
                 // the best we can do without mind-reading third-party programs.
-                int GRACE_TIME = 15000; // 15 seconds.
-                Thread.Sleep(GRACE_TIME);
+                grace.WaitGraceTime();
+
                 return false; // Perform a sync.
             }
         }

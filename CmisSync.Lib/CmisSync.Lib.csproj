@@ -51,7 +51,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>..\Extras\OpenDataSpaceDotCMIS\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\Extras\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
@@ -82,6 +82,7 @@
     <Compile Include="Events\SyncEventManager.cs" />
     <Compile Include="Events\SyncEventQueue.cs" />
     <Compile Include="Sync\ChangeLogThenCrawlStrategy.cs" />
+    <Compile Include="Sync\LocalComparisonStrategy.cs" />
     <Compile Include="UserNotificationListener.cs" />
     <Compile Include="Cmis\BaseException.cs" />
     <Compile Include="Database\Database.cs" />
