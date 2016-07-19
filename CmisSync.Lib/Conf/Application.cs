@@ -1,13 +1,13 @@
 ﻿using System.Collections.Generic;
 using System.Web;
 
-namespace Conf
+namespace CmisSync.Lib.Conf
 {
     public class Application
     {
         public string user;
         public string password;
-        public List<string> folders;
+        public List<FolderName> folders;
         public List<TypeInfos> typeInfos;
         public TypeSynchro typeSynchro;
 
@@ -17,7 +17,7 @@ namespace Conf
             password = "";
         }
 
-        public Application(string user, string password, List<string> folders, List<TypeInfos> typeInfos, TypeSynchro typeSynchro)
+        public Application(string user, string password, List<FolderName> folders, List<TypeInfos> typeInfos, TypeSynchro typeSynchro)
         {
             this.user = user;
             this.password = password;

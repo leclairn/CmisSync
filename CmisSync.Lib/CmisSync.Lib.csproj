@@ -71,6 +71,7 @@
     <Compile Include="Conf\Conf.cs" />
     <Compile Include="Conf\ContentType.cs" />
     <Compile Include="Conf\Extracteur.cs" />
+    <Compile Include="Conf\FolderName.cs" />
     <Compile Include="Conf\MimeSniffer.cs" />
     <Compile Include="Conf\TypeExtracteurs.cs" />
     <Compile Include="Conf\TypeInfos.cs" />
