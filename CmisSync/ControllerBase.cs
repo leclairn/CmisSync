@@ -225,16 +225,48 @@ namespace CmisSync
             folderLock = new FolderLock(FoldersPath);
         }
 
-        private void Compare(Conf conf, List<Config.SyncConfig.Folder> folders)
-        { 
-            foreach(Application app in conf.applications)
+        /// <summary>
+        /// Once the GUI has loaded, show setup window if it is the first run, or check the repositories.
+        /// </summary>
+        public void UIHasLoaded()
+        {
+            if (firstRun)
             {
-                foreach (FolderName folder in app.folders) {
+                ShowSetupWindow(PageType.Setup);
+            }
+
+            new Thread(() =>
+            {
+                CheckRepositories();
+
+                //Check Conf.xml
+                CheckConf();
+
+                RepositoriesLoaded = true;
+                // Update GUI.
+                FolderListChanged();
+            }).Start();
+        }
+
+        /// <summary>
+        /// Check the repositories from conf.xml
+        /// </summary>
+        private void CheckConf()
+        {
+            XmlSerializer serializer = new XmlSerializer(typeof(Conf));
+            Conf conf = serializer.Deserialize(File.OpenRead(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "cmissync", "conf.xml"))) as Conf;
+            if (conf == null)
+                throw new Exception("Problème de Cast");
+
+            foreach (Application app in conf.applications)
+            {
+                foreach (FolderName folder in app.folders)
+                {
                     string localpath = ConfigManager.CurrentConfig.FoldersPath + folder.name;
                     if (Directory.Exists(localpath) && ConfigManager.CurrentConfig.GetFolder(folder.name) != null)
                         continue;
                     if (!Directory.Exists(localpath) && ConfigManager.CurrentConfig.GetFolder(folder.name) == null)
-                    { 
+                    {
                         CreateRepository(folder.name, new Uri(conf.url), app.user, app.password, conf.repository,
                             folder.remotePath, localpath, new List<string>(), true);
                         continue;
@@ -259,38 +291,6 @@ namespace CmisSync
                     }
                 }
             }
-        }
-
-        /// <summary>
-        /// Once the GUI has loaded, show setup window if it is the first run, or check the repositories.
-        /// </summary>
-        public void UIHasLoaded()
-        {
-            if (firstRun)
-            {
-                ShowSetupWindow(PageType.Setup);
-            }
-
-            new Thread(() =>
-            {
-                CheckRepositories();
-
-                //Check Conf.xml
-                CheckConf();
-
-                RepositoriesLoaded = true;
-                // Update GUI.
-                FolderListChanged();
-            }).Start();
-        }
-
-        private void CheckConf()
-        {
-            XmlSerializer serializer = new XmlSerializer(typeof(Conf));
-            Conf conf = serializer.Deserialize(File.OpenRead(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "cmissync", "conf.xml"))) as Conf;
-            if (conf == null)
-                throw new Exception("Problème de Cast");
-            Compare(conf, ConfigManager.CurrentConfig.Folders);
         }
 
         /// <summary>
@@ -346,7 +346,7 @@ namespace CmisSync
         {
             foreach (RepoBase aRepo in this.repositories)
             {
-                if (aRepo.Name == reponame && aRepo.Status == SyncStatus.Idle)
+                if (aRepo.Name == reponame && aRepo.Enabled)
                 {
 
                     aRepo.ManualSync();
@@ -396,36 +396,36 @@ namespace CmisSync
         }
 
         /// <summary>
-        /// Pause or un-pause synchronization for a particular folder.
+        /// Eanble or disable synchronization for a particular folder.
         /// </summary>
         /// <param name="repoName">the folder to pause/unpause</param>
-        public void SuspendOrResumeRepositorySynchronization(string repoName)
+        public void EnableOrDisableRepositorySynchronization(string repoName)
         {
             lock (this.repo_lock)
             {
                 foreach (RepoBase aRepo in this.repositories)
                 {
-                    if(aRepo.Name.Equals(repoName))
+                    if (aRepo.Name.Equals(repoName))
                     {
-                    if (aRepo.Status != SyncStatus.Suspend)
-                    {
-                        SuspendRepositorySynchronization(repoName);
-                    }
-                    else
-                    {
-                        ResumeRepositorySynchronization(repoName);
+                        if (aRepo.Enabled)
+                        {
+                            DisableRepositorySynchronization(repoName);
+                        }
+                        else
+                        {
+                            EnableRepositorySynchronization(repoName);
+                        }
                     }
                 }
             }
         }
-        }
 
 
         /// <summary>
-        /// Pause synchronization for a particular folder.
+        /// Disable synchronization for a particular folder.
         /// </summary>
-        /// <param name="repoName">the folder to pause</param>
-        public void SuspendRepositorySynchronization(string repoName)
+        /// <param name="repoName">the folder to disable sync for</param>
+        public void DisableRepositorySynchronization(string repoName)
         {
             lock (this.repo_lock)
             {
@@ -433,22 +433,22 @@ namespace CmisSync
                 {
                     if (aRepo.Name.Equals(repoName))
                     {
-                    if (aRepo.Status != SyncStatus.Suspend)
-                    {
-                        aRepo.Suspend();
-                        Logger.Debug("Requested to suspend sync of repo " + aRepo.Name);
-                    }
+                        if (aRepo.Enabled)
+                        {
+                            aRepo.Disable();
+                            Logger.Debug("Requested to suspend sync of repo " + aRepo.Name);
                         }
+                    }
+                }
             }
         }
-        }
 
 
         /// <summary>
-        /// Un-pause synchronization for a particular folder.
+        /// Enable synchronization for a particular folder.
         /// </summary>
-        /// <param name="repoName">the folder to unpause</param>
-        public void ResumeRepositorySynchronization(string repoName)
+        /// <param name="repoName">the folder to enable sync for</param>
+        public void EnableRepositorySynchronization(string repoName)
         {
             lock (this.repo_lock)
             {
@@ -456,9 +456,9 @@ namespace CmisSync
                 {
                     if (aRepo.Name.Equals(repoName))
                     {
-                    if (aRepo.Status == SyncStatus.Suspend)
+                        if (!aRepo.Enabled)
                         {
-                            aRepo.Resume();
+                            aRepo.Enable();
                             Logger.Debug("Requested to resume sync of repo " + aRepo.Name);
                         }
                     }
