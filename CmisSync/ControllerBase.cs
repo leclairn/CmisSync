@@ -209,14 +209,6 @@ namespace CmisSync
 
             FoldersPath = ConfigManager.CurrentConfig.FoldersPath;
 
-            //TO DO : fichier de conf
-            XmlSerializer serializer = new XmlSerializer(typeof(Conf));
-            Conf conf = serializer.Deserialize(File.OpenRead(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "cmissync", "conf.xml"))) as Conf;
-            if (conf == null)
-                throw new Exception("Problème de Cast");
-            Compare(conf, ConfigManager.CurrentConfig.Folders); 
-            //
-
             // Create the CmisSync folder and add it to the bookmarks
             bool syncFolderCreated = CreateCmisSyncFolder();
 
@@ -239,17 +231,31 @@ namespace CmisSync
             {
                 foreach (FolderName folder in app.folders) {
                     string localpath = ConfigManager.CurrentConfig.FoldersPath + folder.name;
-                    if (!Directory.Exists(localpath) && ConfigManager.CurrentConfig.GetFolder(folder.name) != null)
-                        Directory.CreateDirectory(localpath);
-                    else if (ConfigManager.CurrentConfig.GetFolder(folder.name) == null)
+                    if (Directory.Exists(localpath) && ConfigManager.CurrentConfig.GetFolder(folder.name) != null)
+                        continue;
+                    if (!Directory.Exists(localpath) && ConfigManager.CurrentConfig.GetFolder(folder.name) == null)
+                    { 
+                        CreateRepository(folder.name, new Uri(conf.url), app.user, app.password, conf.repository,
+                            folder.remotePath, localpath, new List<string>(), true);
+                        continue;
+                    }
+                    if (Directory.Exists(localpath) && ConfigManager.CurrentConfig.GetFolder(folder.name) == null)
                     {
-                        if (Directory.Exists(localpath))
-                        {
-                            Directory.Delete(localpath, true);
-                            RemoveDatabase(localpath);
-                        }
-                        CreateRepository(folder.name, new Uri(conf.url), app.user, app.password, conf.repository, folder.remotePath,
-                            localpath, new List<string>(), true);
+                        RepoInfo repoInfo = new RepoInfo(folder.name, ConfigManager.CurrentConfig.ConfigPath);
+                        repoInfo.Address = new Uri(conf.url);
+                        repoInfo.User = app.user;
+                        repoInfo.Password = new Password(app.password);
+                        repoInfo.RepoID = conf.repository;
+                        repoInfo.RemotePath = folder.remotePath;
+                        repoInfo.TargetDirectory = localpath;
+                        repoInfo.PollInterval = Config.DEFAULT_POLL_INTERVAL;
+                        repoInfo.IsSuspended = false;
+                        repoInfo.LastSuccessedSync = new DateTime(1900, 01, 01);
+                        repoInfo.SyncAtStartup = true;
+                        repoInfo.MaxUploadRetries = 2;
+
+                        ConfigManager.CurrentConfig.AddFolder(repoInfo);
+                        AddRepository(repoInfo);
                     }
                 }
             }
@@ -268,10 +274,23 @@ namespace CmisSync
             new Thread(() =>
             {
                 CheckRepositories();
+
+                //Check Conf.xml
+                CheckConf();
+
                 RepositoriesLoaded = true;
                 // Update GUI.
                 FolderListChanged();
             }).Start();
+        }
+
+        private void CheckConf()
+        {
+            XmlSerializer serializer = new XmlSerializer(typeof(Conf));
+            Conf conf = serializer.Deserialize(File.OpenRead(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "cmissync", "conf.xml"))) as Conf;
+            if (conf == null)
+                throw new Exception("Problème de Cast");
+            Compare(conf, ConfigManager.CurrentConfig.Folders);
         }
 
         /// <summary>
