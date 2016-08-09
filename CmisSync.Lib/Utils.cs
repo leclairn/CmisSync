@@ -152,6 +152,7 @@ namespace CmisSync.Lib
             "tmp", // Microsoft Office
             "sync", // CmisSync download
             "cmissync", // CmisSync database
+            "metadata", // Metadata File
         };
 
         /// <summary>

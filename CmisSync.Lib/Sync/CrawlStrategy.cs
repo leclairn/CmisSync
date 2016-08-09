@@ -397,7 +397,7 @@ namespace CmisSync.Lib.Sync
                                     Logger.Info("Conflict with file: " + remoteDocumentFileName + ", backing up locally modified version and downloading server version");
                                     Logger.Info("- serverSideModificationDate: " + serverSideModificationDate);
                                     Logger.Info("- lastDatabaseUpdate: " + lastDatabaseUpdate);
-                                    Logger.Info("- Checksum in database: " + database.GetChecksum(syncItem.LocalPath));
+                                    Logger.Info("- Checksum in database: " + database.GetFileChecksum(syncItem.LocalPath));
                                     Logger.Info("- Checksum of local file: " + Database.Database.Checksum(syncItem.LocalPath));
 
                                     // Rename locally modified file.
@@ -597,8 +597,17 @@ namespace CmisSync.Lib.Sync
                                     Logger.Info("Uploading file update on repository: " + filePath);
                                     activityListener.ActivityStarted();
                                     UpdateFile(filePath, remoteFolder);
+
+                                    // Update metadatas if necessary
+                                    UpdateMetadatas(filePath, item);
+
                                     activityListener.ActivityStopped();
                                 }
+                            }
+                            else
+                            {
+                                // Update metadatas if necessary
+                                UpdateMetadatas(filePath, item);
                             }
                         }
                     }
@@ -609,6 +618,31 @@ namespace CmisSync.Lib.Sync
                 }
             }
 
+            private void UpdateMetadatas(string filePath, SyncItem item)
+            {
+                try
+                {
+                    string metadataFile = filePath + ".metadata";
+                    if (!File.Exists(metadataFile))
+                        return;
+                    if (database.LocalMetadataHasChanged(metadataFile))
+                    {
+                        IDocument doc = session.GetObjectByPath(item.RemotePath) as IDocument;
+                        if (doc == null)
+                        {
+                            return;
+                        }
+                        Dictionary<string, object> properties = PrepareCustomProperties(item);
+                        doc.UpdateProperties(properties);
+                        database.AddMetadataFile(metadataFile);
+                        Logger.Info("Update metadatas of " + item.LocalLeafname);
+                    }
+                }
+                catch(Exception e)
+                {
+                    ProcessRecoverableException("Cannot Update metadatas of " + item.LocalLeafname, e);
+                }
+            }
 
             /// <summary>
             /// Crawl local folders in a given directory (not recursive).

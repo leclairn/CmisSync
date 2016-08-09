@@ -15,6 +15,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Threading;
 using CmisSync.Lib.Database;
+using CmisSync.Lib.MetaData;
 
 namespace CmisSync.Lib.Sync
 {
@@ -127,7 +128,7 @@ namespace CmisSync.Lib.Sync
             /// Link to parent object.
             /// </summary>
             private RepoBase repo;
-            
+
 
             /// <summary>
             /// Set for first sync.
@@ -178,7 +179,7 @@ namespace CmisSync.Lib.Sync
                 syncWorker = new BackgroundWorker();
                 syncWorker.WorkerSupportsCancellation = true;
                 syncWorker.DoWork += new DoWorkEventHandler(
-                    delegate(Object o, DoWorkEventArgs args)
+                    delegate (Object o, DoWorkEventArgs args)
                     {
                         bool syncFull = (bool)args.Argument;
                         try
@@ -271,7 +272,7 @@ namespace CmisSync.Lib.Sync
                 // Create session.
                 session = Auth.Auth.GetCmisSession(repoInfo.Address.ToString(), repoInfo.User, repoInfo.Password.ToString(), repoInfo.RepoID);
                 Logger.Debug("Created CMIS session: " + session.ToString());
-                
+
                 // Detect repository capabilities.
                 ChangeLogCapability = session.RepositoryInfo.Capabilities.ChangesCapability == CapabilityChanges.All
                         || session.RepositoryInfo.Capabilities.ChangesCapability == CapabilityChanges.ObjectIdsOnly;
@@ -289,7 +290,7 @@ namespace CmisSync.Lib.Sync
                             IsGetFolderTreeSupported = false;
                         if (ChangeLogCapability && features.GetContentChangesSupport == false)
                             ChangeLogCapability = false;
-                        if (ChangeLogCapability && session.RepositoryInfo.Capabilities.ChangesCapability == CapabilityChanges.All 
+                        if (ChangeLogCapability && session.RepositoryInfo.Capabilities.ChangesCapability == CapabilityChanges.All
                             || session.RepositoryInfo.Capabilities.ChangesCapability == CapabilityChanges.Properties)
                             IsPropertyChangesSupported = true;
                     }
@@ -317,7 +318,7 @@ namespace CmisSync.Lib.Sync
                 filters.Add("cmis:lastModifiedBy");
                 filters.Add("cmis:path");
                 filters.Add("cmis:changeToken"); // Needed to send update commands, see https://github.com/aegif/CmisSync/issues/516
-                session.DefaultContext = session.CreateOperationContext(filters, false, true, false, IncludeRelationshipsFlag.None, null, true, null, true, 100);
+                session.DefaultContext = session.CreateOperationContext(null, false, true, false, IncludeRelationshipsFlag.None, null, true, null, true, 100);
             }
 
             /// <summary>
@@ -426,18 +427,19 @@ namespace CmisSync.Lib.Sync
                     if (firstSync)
                     {
                         Logger.Debug("First sync, apply local changes then invoke a full crawl sync");
-                        
+
                         // Compare local files with local database and apply changes to the server.
                         ApplyLocalChanges(localFolder);
 
                         var success = false;
                         if (ChangeLogCapability)
                         {
-                            //Before full sync, get latest changelog
-                            var lastTokenOnServer = CmisUtils.GetChangeLogToken(session);
                             success = CrawlSync(remoteFolder, remoteFolderPath, localFolder);
-                            if(success) database.SetChangeLogToken(lastTokenOnServer);
-                        }else
+                            //After full sync, get latest changelog
+                            var lastTokenOnServer = CmisUtils.GetChangeLogToken(session);
+                            if (success) database.SetChangeLogToken(lastTokenOnServer);
+                        }
+                        else
                         {
                             // Full sync.
                             success = CrawlSync(remoteFolder, remoteFolderPath, localFolder);
@@ -453,7 +455,7 @@ namespace CmisSync.Lib.Sync
                         WatcherSync(remoteFolderPath, localFolder);
 
                         // Compare locally, in case the watcher did not do its job correctly (that happens, Windows bug).
-                        ApplyLocalChanges(localFolder);
+                        //ApplyLocalChanges(localFolder);
 
                         if (ChangeLogCapability)
                         {
@@ -650,7 +652,7 @@ namespace CmisSync.Lib.Sync
 
                 Logger.Error(logMessage, exception);
 
-                if ( ! recoverable)
+                if (!recoverable)
                 {
                     // TODO Any temporary file to clean maybe?
                     throw exception;
@@ -849,7 +851,7 @@ namespace CmisSync.Lib.Sync
                 Logger.Info("Downloading: " + syncItem.LocalLeafname);
 
                 // Skip if invalid file name. See https://github.com/aegif/CmisSync/issues/196
-                if (Utils.IsInvalidFileName(syncItem.LocalLeafname)) 
+                if (Utils.IsInvalidFileName(syncItem.LocalLeafname))
                 {
                     Logger.Info("Skipping download of file with illegal filename: " + syncItem.LocalLeafname);
                     return true;
@@ -930,7 +932,7 @@ namespace CmisSync.Lib.Sync
                         File.Delete(tmpFilePath);
                     }
 
-                    if ( ! success)
+                    if (!success)
                     {
                         return false;
                     }
@@ -1009,11 +1011,15 @@ namespace CmisSync.Lib.Sync
 
                     // Should the local file be made read-only?
                     // Check ther permissions of the current user to the remote document.
-                    bool readOnly = ! remoteDocument.AllowableActions.Actions.Contains(Actions.CanSetContentStream);
+                    bool readOnly = !remoteDocument.AllowableActions.Actions.Contains(Actions.CanSetContentStream);
                     if (readOnly)
                     {
                         File.SetAttributes(filePath, FileAttributes.ReadOnly);
                     }
+
+                    // Create metadata file for this file
+                    CreateMetadataFile(syncItem);
+                    database.AddMetadataFile(syncItem.LocalLeafname + ".metadata");
 
                     // Create database entry for this file.
                     database.AddFile(syncItem, remoteDocument.Id, remoteDocument.LastModificationDate, metadata, filehash);
@@ -1025,6 +1031,53 @@ namespace CmisSync.Lib.Sync
                 {
                     ProcessRecoverableException("Could not download file: " + syncItem.LocalPath, e);
                     return false;
+                }
+            }
+
+
+            private void CreateMetadataFile(SyncItem syncItem)
+            {
+                try
+                {
+                    ICmisObject doc = session.GetObjectByPath(syncItem.RemotePath);
+                    if (doc == null)
+                    {
+                        Logger.Error(syncItem.RemoteRelativePath + "is not a document");
+                        return;
+                    }
+
+                    GlobalMetaDatas globalMetadatas = new GlobalMetaDatas();
+                    IList<IProperty> properties = doc.Properties;
+
+                    globalMetadatas.typename = (string)doc.GetPropertyValue(PropertyIds.ObjectTypeId);
+
+                    if (doc.GetPropertyValue(PropertyIds.SecondaryObjectTypeIds) != null)
+                    {
+                        foreach (object o in (List<object>)doc.GetPropertyValue(PropertyIds.SecondaryObjectTypeIds))
+                        {
+                            globalMetadatas.aspects.Add((string)o);
+                        }
+                    }
+
+                    foreach (IProperty prop in properties)
+                    {
+                        if (prop.PropertyDefinition.Updatability == Updatability.ReadWrite
+                            && !prop.IsMultiValued)
+                        {
+                            if (prop.PropertyDefinition.IsRequired == true)
+                            {
+                            globalMetadatas.metadatas.addMetaData(prop.Id, prop.Value, true);
+                            }
+                            else
+                                globalMetadatas.metadatas.addMetaData(prop.Id, prop.Value, false);
+                        }
+                    }
+                    globalMetadatas.Save(syncItem.LocalPath + ".metadata");
+                    Logger.Info("Created metadata file : " + syncItem.LocalLeafname + ".metadata");
+                }
+                catch (Exception e)
+                {
+                    Logger.Error("Cannot create metadata of " + syncItem.LocalPath);
                 }
             }
 
@@ -1084,13 +1137,9 @@ namespace CmisSync.Lib.Sync
                     IDocument remoteDocument = null;
                     byte[] filehash = { };
 
-                    // Prepare properties
+                    //Prepare custom properties from xml file metadata
                     string remoteFileName = syncItem.RemoteLeafname;
-                    Dictionary<string, object> properties = new Dictionary<string, object>();
-                    properties.Add(PropertyIds.Name, remoteFileName);
-                    properties.Add(PropertyIds.ObjectTypeId, "cmis:document");
-                    properties.Add(PropertyIds.CreationDate, File.GetCreationTime(syncItem.LocalPath));
-                    properties.Add(PropertyIds.LastModificationDate, File.GetLastWriteTime(syncItem.LocalPath));
+                    Dictionary<string, object> properties = PrepareCustomProperties(syncItem);
 
                     // Prepare content stream
                     using (Stream file = File.Open(syncItem.LocalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
@@ -1103,7 +1152,7 @@ namespace CmisSync.Lib.Sync
                         contentStream.Length = file.Length;
                         contentStream.Stream = hashstream;
 
-                        Logger.InfoFormat("Uploading: {0} as {1}/{2}",syncItem.LocalPath, remoteFolder.Path, remoteFileName);
+                        Logger.InfoFormat("Uploading: {0} as {1}/{2}", syncItem.LocalPath, remoteFolder.Path, remoteFileName);
                         remoteDocument = remoteFolder.CreateDocument(properties, contentStream, null);
                         Logger.InfoFormat("Uploaded: {0}", syncItem.LocalPath);
                         filehash = hashAlg.Hash;
@@ -1121,6 +1170,52 @@ namespace CmisSync.Lib.Sync
                 {
                     ProcessRecoverableException("Could not upload file: " + syncItem.LocalPath, e);
                     return false;
+                }
+            }
+
+            private Dictionary<string, object> PrepareCustomProperties(SyncItem syncItem)
+            {
+                string remoteFileName = syncItem.RemoteLeafname;
+                //Common Metadatas
+                Dictionary<string, object> properties = new Dictionary<string, object>();
+                properties[PropertyIds.Name] = remoteFileName;
+                properties[PropertyIds.CreationDate] = File.GetCreationTime(syncItem.LocalPath);
+                properties[PropertyIds.LastModificationDate] = File.GetLastWriteTime(syncItem.LocalPath);
+
+                string metadataFile = syncItem.LocalPath + ".metadata";
+                //Try Loading metadata file
+                try
+                {
+                    GlobalMetaDatas globalMetadatas = GlobalMetaDatas.Load(metadataFile);
+                    properties[PropertyIds.ObjectTypeId] = globalMetadatas.typename;
+                    properties[PropertyIds.SecondaryObjectTypeIds] = globalMetadatas.aspects;
+                    foreach (MetaData.MetaData metadata in globalMetadatas.metadatas.Mandatory)
+                    {
+                        if (metadata.value != null)
+                        {
+                            properties[metadata.type] = metadata.value;
+                        }
+                    }
+                    foreach (MetaData.MetaData metadata in globalMetadatas.metadatas.Optional)
+                    {
+                        if (metadata.value != null)
+                        {
+                            properties[metadata.type] = metadata.value;
+                        }
+                    }
+                    return properties;
+                }
+                catch (FileNotFoundException e)
+                {
+                    Logger.Info(metadataFile + " did not exist. Using default properties");
+                    // Use Default properties
+                    properties[PropertyIds.ObjectTypeId] = "cmis:document";
+                    return properties;
+                }
+                catch (Exception e)
+                {
+                    Logger.Error("Could not read " + metadataFile, e);
+                    throw;
                 }
             }
 
@@ -1214,6 +1309,19 @@ namespace CmisSync.Lib.Sync
                     return false;
                 }
                 return success;
+            }
+
+            /// <summary>
+            /// Update metadata of file.
+            /// </summary>
+            private void UpdateMetadata(string path, IFolder folder)
+            {
+                SyncItem syncItem = database.GetSyncItemFromLocalPath(path);
+
+                Dictionary<string, object> properties = PrepareCustomProperties(syncItem);
+
+                IDocument doc = (IDocument)session.GetObjectByPath(syncItem.RemotePath);
+                doc.UpdateProperties(properties);
             }
 
 
@@ -1351,8 +1459,8 @@ namespace CmisSync.Lib.Sync
             {
 
 
-               string message0 = "CmisSync Warning: You have deleted file " + syncItem.LocalPath +
-                                "\nCmisSync will now delete it from the server. If you actually did not delete this file, please report a bug at CmisSync@aegif.jp";
+                string message0 = "CmisSync Warning: You have deleted file " + syncItem.LocalPath +
+                                 "\nCmisSync will now delete it from the server. If you actually did not delete this file, please report a bug at CmisSync@aegif.jp";
                 Logger.Info(message0);
                 //Utils.NotifyUser(message0);
 
@@ -1381,6 +1489,9 @@ namespace CmisSync.Lib.Sync
                     // Remove it from database.
                     database.RemoveFile(syncItem);
                     activityListener.ActivityStopped();
+                    //Remove metadata file if exist
+                    File.Delete(syncItem.LocalPath + ".metadata");
+                    database.RemoveMetadataFile(syncItem);
                 }
             }
 
@@ -1643,9 +1754,9 @@ namespace CmisSync.Lib.Sync
                     throw new OperationCanceledException("Sync was cancelled by user.");
                 }
 
-                if ( ! repo.Enabled)
+                if (!repo.Enabled)
                 {
-                    while ( ! repo.Enabled)
+                    while (!repo.Enabled)
                     {
                         enabled = true;
                         Logger.DebugFormat("Sync of {0} is suspend, next retry in {1}ms", repoInfo.Name, SYNC_SUSPEND_SLEEP_INTERVAL);

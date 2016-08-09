@@ -68,6 +68,8 @@
     <Compile Include="Cmis\CmisProfile.cs" />
     <Compile Include="Database\DatabaseMigrationBase.cs" />
     <Compile Include="Database\DatabaseMigration.cs" />
+    <Compile Include="MetaData\GlobalMetaDatas.cs" />
+    <Compile Include="MetaData\MetaDatas.cs" />
     <Compile Include="Sync\ChangeLogThenCrawlStrategy.cs" />
     <Compile Include="Sync\LocalComparisonStrategy.cs" />
     <Compile Include="UserNotificationListener.cs" />

@@ -4,13 +4,14 @@ using CmisSync.Lib;
 using NUnit.Framework;
 using System.Collections.Generic;
 using System.Text;
+using System.Reflection;
 
 namespace TestLibrary
 {
     [TestFixture]
     class CmisSyncLibUtilsTest
     {
-        private static readonly string TestFolderParent = Directory.GetCurrentDirectory();
+        private static readonly string TestFolderParent = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
         private static readonly string TestFolder = Path.Combine(TestFolderParent, "conflicttest");
 
         [SetUp]

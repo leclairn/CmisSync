@@ -70,7 +70,7 @@ namespace CmisSync.Lib
             Renamed += new RenamedEventHandler(OnRenamed);
 
             EnableRaisingEvents = true;
-            EnableEvent = true;
+            EnableEvent = false; //for test
         }
 
 

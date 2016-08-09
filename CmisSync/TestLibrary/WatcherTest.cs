@@ -524,21 +524,18 @@ namespace TestLibrary
         }*/
 
         [Test, Category("Slow")]
-        [Ignore]
         public void TestChangeTypeForMoveHeavy()
         {
             //Assert.Fail("TODO");
         }
 
         [Test, Category("Fast")]
-        [Ignore]
         public void TestChangeTypeMix()
         {
             //Assert.Fail("TODO");
         }
 
         [Test, Category("Slow")]
-        [Ignore]
         public void TestChangeTypeMixHeavy()
         {
             //Assert.Fail("TODO");
