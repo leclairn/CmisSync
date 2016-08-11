@@ -369,11 +369,11 @@ namespace TestLibrary
         {
             for (int iFolder = 0; iFolder < HeavyNumber; ++iFolder)
             {
-                IFolder folder = CreateFolder(root, iFolder.ToString());
+                IFolder folder = CreateFolder(root, "Folder" + iFolder.ToString());
                 for (int iFile = 0; iFile < HeavyNumber; ++iFile)
                 {
                     string content = new string((char)('A' + iFile % 10), HeavyFileSize);
-                    CreateDocument(folder, iFile.ToString(), content);
+                    CreateDocument(folder, "File" + iFile.ToString(), content);
                 }
             }
         }
@@ -1867,7 +1867,7 @@ namespace TestLibrary
             {
                 synchronizedFolder.resetFailedOperationsCounter();
                 synchronizedFolder.Sync();
-                CleanAll(localDirectory);
+                Clean(localDirectory, synchronizedFolder);
                 WatcherTest.WaitWatcher();
                 synchronizedFolder.Sync();
                 Console.WriteLine("Synced to clean state.");
@@ -1878,9 +1878,9 @@ namespace TestLibrary
                 ISession session = CreateSession(repoInfo);
                 IFolder folder = (IFolder)session.GetObjectByPath(remoteFolderPath);
 
-                string name1 = "SyncConcurrent.1";
+                string name1 = "SyncConcurrent1";
                 string path1 = Path.Combine(localDirectory, name1);
-                string name2 = "SyncConcurrent.2";
+                string name2 = "SyncConcurrent2";
                 string path2 = Path.Combine(localDirectory, name2);
 
                 //  create heavy folder in concurrent

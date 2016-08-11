@@ -599,7 +599,7 @@ namespace CmisSync.Lib.Sync
                                     UpdateFile(filePath, remoteFolder);
 
                                     // Update metadatas if necessary
-                                    UpdateMetadatas(filePath, item);
+                                    UpdateMetadatasIfNecessary(item);
 
                                     activityListener.ActivityStopped();
                                 }
@@ -607,7 +607,7 @@ namespace CmisSync.Lib.Sync
                             else
                             {
                                 // Update metadatas if necessary
-                                UpdateMetadatas(filePath, item);
+                                UpdateMetadatasIfNecessary(item);
                             }
                         }
                     }
@@ -618,11 +618,11 @@ namespace CmisSync.Lib.Sync
                 }
             }
 
-            private void UpdateMetadatas(string filePath, SyncItem item)
+            private void UpdateMetadatasIfNecessary(SyncItem item)
             {
                 try
                 {
-                    string metadataFile = filePath + ".metadata";
+                    string metadataFile = item.LocalPath + ".metadata";
                     if (!File.Exists(metadataFile))
                         return;
                     if (database.LocalMetadataHasChanged(metadataFile))

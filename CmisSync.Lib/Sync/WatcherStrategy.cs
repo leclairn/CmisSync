@@ -268,6 +268,13 @@ namespace CmisSync.Lib.Sync
             {
                 SleepWhileSuspended();
                 string localFilename = Path.GetFileName(localPath);
+
+                if (Utils.IsMetadataFile(localPath))
+                {
+                    SyncItem syncItem = database.GetSyncItemFromLocalPath(localPath.Replace(".metadata", ""));
+                    UpdateMetadatasIfNecessary(syncItem);
+                }
+
                 if (!Utils.WorthSyncing(Path.GetDirectoryName(localPath), localFilename, repoInfo))
                 {
                     return true;

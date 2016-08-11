@@ -53,6 +53,16 @@ namespace CmisSync.Lib
             userNotificationListener.NotifyUser(message);
         }
 
+        /// <summary>
+        /// Send a message to the end user.
+        /// </summary>
+        public static bool IsMetadataFile(string path)
+        {
+            if (Path.GetExtension(path) == ".metadata")
+                return true;
+            else
+                return false;
+        }
 
         /// <summary>
         /// Check whether the current user has write permission to the specified path.

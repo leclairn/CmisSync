@@ -429,7 +429,7 @@ namespace CmisSync.Lib.Sync
                         Logger.Debug("First sync, apply local changes then invoke a full crawl sync");
 
                         // Compare local files with local database and apply changes to the server.
-                        ApplyLocalChanges(localFolder);
+                        //ApplyLocalChanges(localFolder);
 
                         var success = false;
                         if (ChangeLogCapability)
@@ -451,12 +451,10 @@ namespace CmisSync.Lib.Sync
                     }
                     else
                     {
-                        // Apply local changes noticed by the filesystem watcher.
-                        WatcherSync(remoteFolderPath, localFolder);
-
                         // Compare locally, in case the watcher did not do its job correctly (that happens, Windows bug).
                         //ApplyLocalChanges(localFolder);
 
+                        // Begin with changelog otherwise localchanges will be added to changelog
                         if (ChangeLogCapability)
                         {
                             Logger.Debug("Invoke a remote change log sync");
@@ -469,6 +467,9 @@ namespace CmisSync.Lib.Sync
                             repo.Watcher.Clear();
                             CrawlSyncAndUpdateChangeLogToken(remoteFolder, remoteFolderPath, localFolder);
                         }
+
+                        // Apply local changes noticed by the filesystem watcher.
+                        WatcherSync(remoteFolderPath, localFolder);
                     }
                 }
             }
@@ -1175,7 +1176,7 @@ namespace CmisSync.Lib.Sync
 
             private Dictionary<string, object> PrepareCustomProperties(SyncItem syncItem)
             {
-                string remoteFileName = syncItem.RemoteLeafname;
+                string remoteFileName = syncItem.LocalLeafname;
                 //Common Metadatas
                 Dictionary<string, object> properties = new Dictionary<string, object>();
                 properties[PropertyIds.Name] = remoteFileName;
@@ -1314,7 +1315,7 @@ namespace CmisSync.Lib.Sync
             /// <summary>
             /// Update metadata of file.
             /// </summary>
-            private void UpdateMetadata(string path, IFolder folder)
+            private void UpdateMetadata(string path)
             {
                 SyncItem syncItem = database.GetSyncItemFromLocalPath(path);
 
