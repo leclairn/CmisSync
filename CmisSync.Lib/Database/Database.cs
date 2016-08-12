@@ -185,7 +185,8 @@ namespace CmisSync.Lib.Database
                         
                         /* Metadata */
                         CREATE TABLE IF NOT EXISTS metadatas (
-                            localPath TEXT PRIMARY KEY,
+                            path TEXT PRIMARY KEY,
+                            filePath TEXT,
                             checksum TEXT);
 
                         CREATE TABLE IF NOT EXISTS general (
@@ -387,36 +388,37 @@ namespace CmisSync.Lib.Database
         /// Add a file to the database.
         /// If checksum is not null, it will be used for the database entry
         /// </summary>
-        public void AddMetadataFile(string localPath)
+        public void AddMetadataFile(string path, string filePath)
         {
-            Logger.Debug("Starting database file addition for metadataFile: " + localPath);
+            Logger.Debug("Starting database file addition for metadataFile: " + path + " for " + filePath);
             string checksum = "";
             // Calculate file checksum.
             try
             {
-                checksum = Checksum(localPath);
+                checksum = Checksum(path);
             }
             catch (IOException e)
             {
-                Logger.Warn("IOException while calculating checksum of " + localPath
+                Logger.Warn("IOException while calculating checksum of " + path
                     + " , The file was removed while reading. Just skip it, as it does not need to be added anymore. ", e);
             }
 
             if (String.IsNullOrEmpty(checksum))
             {
-                Logger.Warn("Bad checksum for " + localPath);
+                Logger.Warn("Bad checksum for " + path);
                 return;
             }
 
             // Insert into database.
             string command =
-                @"INSERT OR REPLACE INTO metadatas (localpath, checksum)
-                    VALUES (@localPath, @checksum)";
+                @"INSERT OR REPLACE INTO metadatas (path, filePath, checksum)
+                    VALUES (@path, @filePath, @checksum)";
             Dictionary<string, object> parameters = new Dictionary<string, object>();
-            parameters.Add("localPath", localPath);
+            parameters.Add("path", path);
+            parameters.Add("filePath", filePath);
             parameters.Add("checksum", checksum);
             ExecuteSQLAction(command, parameters);
-            Logger.Debug("Completed database file addition for metadatafile: " + localPath);
+            Logger.Debug("Completed database file addition for metadatafile: " + path + " for " + filePath);
         }
 
 
@@ -435,6 +437,8 @@ namespace CmisSync.Lib.Database
             {
                 serverSideModificationDate = ((DateTime)serverSideModificationDate).ToUniversalTime();
             }
+
+            string id = objectId.Remove(objectId.IndexOf(";"));
 
             if (String.IsNullOrEmpty(checksum))
             {
@@ -463,7 +467,7 @@ namespace CmisSync.Lib.Database
             Dictionary<string, object> parameters = new Dictionary<string, object>();
             parameters.Add("path", item.RemoteRelativePath);
             parameters.Add("localPath", item.LocalRelativePath);
-            parameters.Add("id", objectId);
+            parameters.Add("id", id);
             parameters.Add("serverSideModificationDate", serverSideModificationDate);
             parameters.Add("metadata", Json(metadata));
             parameters.Add("checksum", checksum);
@@ -516,8 +520,8 @@ namespace CmisSync.Lib.Database
         public void RemoveMetadataFile(SyncItem item)
         {
             Dictionary<string, object> parameters = new Dictionary<string, object>();
-            parameters.Add("localPath", item.LocalPath + ".metadata");
-            ExecuteSQLAction("DELETE FROM metadatas WHERE localPath=@localPath", parameters);
+            parameters.Add("filePath", item.LocalPath);
+            ExecuteSQLAction("DELETE FROM metadatas WHERE filePath=@filePath", parameters);
         }
 
 
@@ -542,6 +546,17 @@ namespace CmisSync.Lib.Database
             ExecuteSQLAction("DELETE FROM files WHERE path LIKE @path", parameters);
         }
 
+        /// <summary>
+        /// Move a metadata file.
+        /// </summary>
+        public void MoveMetadataFile(SyncItem oldItem, SyncItem newItem)
+        {
+            Dictionary<string, object> parameters = new Dictionary<string, object>();
+            parameters.Add("oldFilePath", oldItem.LocalPath);
+            parameters.Add("newFilePath", newItem.LocalPath);
+            parameters.Add("newPath", newItem.LocalPath + ".metadata");
+            ExecuteSQLAction("UPDATE metadatas SET path=@newPath, filePath=@newFilePath WHERE filePath=@oldFilePath", parameters);
+        }
 
         /// <summary>
         /// Move a file.
@@ -857,8 +872,8 @@ namespace CmisSync.Lib.Database
         public bool ContainsLocalMetadata(string localPath)
         {
             Dictionary<string, object> parameters = new Dictionary<string, object>();
-            parameters.Add("localPath", localPath);
-            return null != ExecuteSQLFunction("SELECT * FROM metadatas WHERE localPath=@localPath", parameters);
+            parameters.Add("path", localPath);
+            return null != ExecuteSQLFunction("SELECT * FROM metadatas WHERE path=@path", parameters);
         }
 
         /// <summary>
@@ -1078,6 +1093,28 @@ namespace CmisSync.Lib.Database
         }
 
         /// <summary>
+        /// <returns>metadata file path for <paramref name="id"/></returns>
+        /// </summary>
+        public string GetMetadataFileFromFilePath(string filePath)
+        {
+            Dictionary<string, object> parameters = new Dictionary<string, object>();
+            parameters.Add("filePath", filePath);
+            string result = Denormalize((string)ExecuteSQLFunction("SELECT path FROM metadatas WHERE filePath=@filePath", parameters));
+            return result;
+        }
+
+        /// <summary>
+        /// <returns>file path for <paramref name="id"/></returns>
+        /// </summary>
+        public string GetFilePathFromMetadataFile(string path)
+        {
+            Dictionary<string, object> parameters = new Dictionary<string, object>();
+            parameters.Add("path", path);
+            string result = Denormalize((string)ExecuteSQLFunction("SELECT filePath FROM metadatas WHERE path=@path", parameters));
+            return result;    
+        }
+
+        /// <summary>
         /// <returns>path field in folders table for <paramref name="id"/></returns>
         /// </summary>
         public string GetFolderRemotePath(string id)
@@ -1166,13 +1203,13 @@ namespace CmisSync.Lib.Database
 
         private string GetMetadataChecksum(string path)
         {
-            string command = "SELECT checksum FROM metadatas WHERE localPath=@localPath";
+            string command = "SELECT checksum FROM metadatas WHERE path=@path";
             Dictionary<string, object> parameters = new Dictionary<string, object>();
-            parameters.Add("localPath", path);
+            parameters.Add("path", path);
             string res = (string)ExecuteSQLFunction(command, parameters);
             if (string.IsNullOrEmpty(res))
             {
-                Logger.Debug("GetCheckSum returns null for path=" + path + ", localRelativePath=" + path);
+                Logger.Debug("GetCheckSum returns null for path=" + path);
             }
             return res;
         }

@@ -271,7 +271,7 @@ namespace CmisSync.Lib.Sync
 
                 if (Utils.IsMetadataFile(localPath))
                 {
-                    SyncItem syncItem = database.GetSyncItemFromLocalPath(localPath.Replace(".metadata", ""));
+                    SyncItem syncItem = database.GetSyncItemFromLocalPath(database.GetFilePathFromMetadataFile(localPath));
                     UpdateMetadatasIfNecessary(syncItem);
                 }
 

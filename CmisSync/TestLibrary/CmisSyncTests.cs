@@ -369,11 +369,11 @@ namespace TestLibrary
         {
             for (int iFolder = 0; iFolder < HeavyNumber; ++iFolder)
             {
-                IFolder folder = CreateFolder(root, "Folder" + iFolder.ToString());
+                IFolder folder = CreateFolder(root, iFolder.ToString());
                 for (int iFile = 0; iFile < HeavyNumber; ++iFile)
                 {
                     string content = new string((char)('A' + iFile % 10), HeavyFileSize);
-                    CreateDocument(folder, "File" + iFile.ToString(), content);
+                    CreateDocument(folder, iFile.ToString(), content);
                 }
             }
         }
@@ -730,6 +730,9 @@ namespace TestLibrary
         public void ResumeBigFile(string canonical_name, string localPath, string remoteFolderPath,
             string url, string user, string password, string repositoryId)
         {
+            //Clean Remote Folder
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
+
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
             string canonical_name2 = canonical_name + ".BigFile";
@@ -869,6 +872,7 @@ namespace TestLibrary
         {
                         // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
             CleanDirectory(localDirectory);
             Console.WriteLine("Synced to clean state.");
 
@@ -967,6 +971,7 @@ namespace TestLibrary
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
             CleanDirectory(localDirectory);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
             Console.WriteLine("Synced to clean state.");
 
             // Mock.
@@ -1142,6 +1147,7 @@ namespace TestLibrary
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
             CleanDirectory(localDirectory);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
             Console.WriteLine("Synced to clean state.");
 
             // Mock.
@@ -1714,6 +1720,9 @@ namespace TestLibrary
         public void SyncEqualityHeavyFolder(string canonical_name, string localPath, string remoteFolderPath,
             string url, string user, string password, string repositoryId)
         {
+            //Clean Remote
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
+
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
             string canonical_name2 = canonical_name + ".equality";
@@ -1843,6 +1852,7 @@ namespace TestLibrary
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
             CleanDirectory(localDirectory);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
             Console.WriteLine("Synced to clean state.");
 
             // Mock.
@@ -1867,7 +1877,6 @@ namespace TestLibrary
             {
                 synchronizedFolder.resetFailedOperationsCounter();
                 synchronizedFolder.Sync();
-                Clean(localDirectory, synchronizedFolder);
                 WatcherTest.WaitWatcher();
                 synchronizedFolder.Sync();
                 Console.WriteLine("Synced to clean state.");
@@ -1944,6 +1953,43 @@ namespace TestLibrary
                 Console.WriteLine("Clean all.");
                 Clean(localDirectory, synchronizedFolder);
             }
+        }
+
+        private void CleanRemote(string url, string user, string password, string repositoryId, string remoteFolderPath)
+        {
+            ISession session = Auth.GetCmisSession(url, user, password, repositoryId);
+            IFolder folder = session.GetObjectByPath(remoteFolderPath) as IFolder;
+            if (folder != null)
+            {
+                foreach (ICmisObject c in folder.GetChildren())
+                {
+                    if (c is IFolder)
+                    {
+                        DeleteRemoteFolder((IFolder)c);
+                    }
+                    else
+                    {
+                        c.Delete(true);
+                    }
+                }
+            }
+            session.Clear();
+        }
+
+        private void DeleteRemoteFolder(IFolder folder)
+        {
+            foreach (ICmisObject c in folder.GetChildren())
+            {
+                if (c is IFolder)
+                {
+                    DeleteRemoteFolder((IFolder)c);
+                }
+                else
+                {
+                    c.Delete(true);
+                }
+            }
+            folder.Delete(true);
         }
 
         [Test, TestCaseSource("TestServers"), Category("Slow")]
@@ -2076,6 +2122,7 @@ namespace TestLibrary
         {
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
             CleanDirectory(localDirectory);
             Console.WriteLine("Synced to clean state.");
 

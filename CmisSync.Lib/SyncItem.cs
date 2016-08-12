@@ -419,12 +419,12 @@ namespace CmisSync.Lib
     {
         public string LocalToRemote(string localPath)
         {
-            return localPath;
+            return localPath.Replace("\\", "/");
         }
 
         public string RemoteToLocal(string remotePath)
         {
-            return remotePath;
+            return remotePath.Replace("/", "\\");
         }
     }
 

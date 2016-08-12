@@ -372,6 +372,26 @@ namespace CmisSync.Lib.Sync
                         syncItem = SyncItemFactory.CreateFromRemoteDocument(remotePath, repoInfo.CmisProfile.localFilename(remoteDocument), repoInfo, database);
                     }
 
+                    /*
+                    // Check if the document has been renamed
+                    if (!syncItem.FileExistsLocal())
+                    {
+                        string path;
+                        string id = remoteDocument.Id.Remove(remoteDocument.Id.IndexOf(";"));
+                        string metadataFile;
+                        // Check if rename of the document
+                        if ((path = database.GetFilePath(id)) != null)
+                        {
+                            File.Move(path, syncItem.LocalPath);
+                            if ((metadataFile = database.GetMetadataFileFromFilePath(path)) != null)
+                            {
+                                File.Move(metadataFile, syncItem.LocalPath + ".metadata");
+                            }
+                            database.MoveFile(database.GetSyncItemFromLocalPath(path), syncItem);
+                        }
+                    }
+                    */
+
                     if (syncItem.FileExistsLocal())
                     {
                         // Check modification date stored in database and download if remote modification date if different.
@@ -455,7 +475,6 @@ namespace CmisSync.Lib.Sync
                         else
                         {
                             // New remote file, download it.
-
                             Logger.Info("New remote file: " + syncItem.RemotePath);
                             activityListener.ActivityStarted();
                             DownloadFile(remoteDocument, remotePath, localFolder);
@@ -568,6 +587,9 @@ namespace CmisSync.Lib.Sync
                                     // Delete from the local filesystem.
                                     File.Delete(filePath);
 
+                                    // Delete metadata file if exist
+                                    File.Delete(database.GetMetadataFileFromFilePath(filePath));
+
                                     // Delete file from database.
                                     database.RemoveFile(item);
 
@@ -622,7 +644,7 @@ namespace CmisSync.Lib.Sync
             {
                 try
                 {
-                    string metadataFile = item.LocalPath + ".metadata";
+                    string metadataFile = database.GetMetadataFileFromFilePath(item.LocalPath);
                     if (!File.Exists(metadataFile))
                         return;
                     if (database.LocalMetadataHasChanged(metadataFile))
@@ -634,7 +656,7 @@ namespace CmisSync.Lib.Sync
                         }
                         Dictionary<string, object> properties = PrepareCustomProperties(item);
                         doc.UpdateProperties(properties);
-                        database.AddMetadataFile(metadataFile);
+                        database.AddMetadataFile(metadataFile, item.LocalPath);
                         Logger.Info("Update metadatas of " + item.LocalLeafname);
                     }
                 }

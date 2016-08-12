@@ -14,7 +14,7 @@ namespace TestLibrary
     [TestFixture]
     public class WatcherTest
     {
-        private static readonly string TestFolderParent = Directory.GetCurrentDirectory();
+        private static readonly string TestFolderParent = ConfigManager.CurrentConfig.FoldersPath;
         private static readonly string TestFolder = Path.Combine(TestFolderParent, "test");
         private static readonly int NormalNumber = 10;
         private static readonly int HeavyNumber = 10000;

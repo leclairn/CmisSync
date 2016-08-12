@@ -32,21 +32,6 @@ namespace CmisSync.Lib.Sync
                     var addedFolders = new List<string>();
                     var addedFiles = new List<string>();
 
-                    //Check for metadata
-                    /*
-                     //Check if metadata file
-                    if (Path.GetExtension(filePath) == ".metadata")
-                    {
-                        if (!database.ContainsLocalMetadata(filePath))
-                            database.AddMetadataFile(filePath);
-                        else
-                        {
-                            if (database.LocalMetadataHasChanged(filePath))
-                                UpdateMetadata(filePath.Replace(".metadata", ""), remoteFolder);
-                        }
-                    }
-                    */
-
                     // Check for added folders and files.
                     FindNewLocalObjects(rootFolder, ref addedFolders, ref addedFiles);
 

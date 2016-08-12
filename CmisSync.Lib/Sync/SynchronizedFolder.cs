@@ -432,6 +432,8 @@ namespace CmisSync.Lib.Sync
                         //ApplyLocalChanges(localFolder);
 
                         var success = false;
+
+                        ChangeLogCapability = false; // Forced
                         if (ChangeLogCapability)
                         {
                             success = CrawlSync(remoteFolder, remoteFolderPath, localFolder);
@@ -454,6 +456,9 @@ namespace CmisSync.Lib.Sync
                         // Compare locally, in case the watcher did not do its job correctly (that happens, Windows bug).
                         //ApplyLocalChanges(localFolder);
 
+                        // Apply local changes noticed by the filesystem watcher.
+                        WatcherSync(remoteFolderPath, localFolder);
+
                         // Begin with changelog otherwise localchanges will be added to changelog
                         if (ChangeLogCapability)
                         {
@@ -467,9 +472,6 @@ namespace CmisSync.Lib.Sync
                             repo.Watcher.Clear();
                             CrawlSyncAndUpdateChangeLogToken(remoteFolder, remoteFolderPath, localFolder);
                         }
-
-                        // Apply local changes noticed by the filesystem watcher.
-                        WatcherSync(remoteFolderPath, localFolder);
                     }
                 }
             }
@@ -1020,7 +1022,7 @@ namespace CmisSync.Lib.Sync
 
                     // Create metadata file for this file
                     CreateMetadataFile(syncItem);
-                    database.AddMetadataFile(syncItem.LocalLeafname + ".metadata");
+                    database.AddMetadataFile(syncItem.LocalPath + ".metadata", syncItem.LocalPath);
 
                     // Create database entry for this file.
                     database.AddFile(syncItem, remoteDocument.Id, remoteDocument.LastModificationDate, metadata, filehash);
@@ -1165,6 +1167,11 @@ namespace CmisSync.Lib.Sync
                     // Create database entry for this file.
                     database.AddFile(syncItem, remoteDocument.Id, remoteDocument.LastModificationDate, metadata, filehash);
                     Logger.Info("Added file to database: " + syncItem.LocalPath);
+
+                    // Create metadata file
+                    CreateMetadataFile(syncItem);
+                    database.AddMetadataFile(syncItem.LocalPath + ".metadata", syncItem.LocalPath);
+
                     return true;
                 }
                 catch (Exception e)
@@ -1491,7 +1498,7 @@ namespace CmisSync.Lib.Sync
                     database.RemoveFile(syncItem);
                     activityListener.ActivityStopped();
                     //Remove metadata file if exist
-                    File.Delete(syncItem.LocalPath + ".metadata");
+                    File.Delete(database.GetMetadataFileFromFilePath(syncItem.LocalPath));
                     database.RemoveMetadataFile(syncItem);
                 }
             }
