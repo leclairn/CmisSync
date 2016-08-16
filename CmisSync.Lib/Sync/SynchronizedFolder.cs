@@ -433,7 +433,6 @@ namespace CmisSync.Lib.Sync
 
                         var success = false;
 
-                        ChangeLogCapability = false; // Forced
                         if (ChangeLogCapability)
                         {
                             success = CrawlSync(remoteFolder, remoteFolderPath, localFolder);
@@ -459,18 +458,21 @@ namespace CmisSync.Lib.Sync
                         // Apply local changes noticed by the filesystem watcher.
                         WatcherSync(remoteFolderPath, localFolder);
 
-                        // Begin with changelog otherwise localchanges will be added to changelog
-                        if (ChangeLogCapability)
+                        if (syncFull)
                         {
-                            Logger.Debug("Invoke a remote change log sync");
-                            ChangeLogThenCrawlSync(remoteFolder, remoteFolderPath, localFolder);
-                        }
-                        else
-                        {
-                            //  Have to crawl remote.
-                            Logger.Warn("Invoke a full crawl sync (the remote does not support ChangeLog)");
-                            repo.Watcher.Clear();
-                            CrawlSyncAndUpdateChangeLogToken(remoteFolder, remoteFolderPath, localFolder);
+                            // Begin with changelog otherwise localchanges will be added to changelog
+                            if (ChangeLogCapability)
+                            {
+                                Logger.Debug("Invoke a remote change log sync");
+                                ChangeLogThenCrawlSync(remoteFolder, remoteFolderPath, localFolder);
+                            }
+                            else
+                            {
+                                //  Have to crawl remote.
+                                Logger.Warn("Invoke a full crawl sync (the remote does not support ChangeLog)");
+                                repo.Watcher.Clear();
+                                CrawlSyncAndUpdateChangeLogToken(remoteFolder, remoteFolderPath, localFolder);
+                            }
                         }
                     }
                 }
@@ -1021,8 +1023,10 @@ namespace CmisSync.Lib.Sync
                     }
 
                     // Create metadata file for this file
+                    string metadataFile = syncItem.LocalPath + ".metadata";
                     CreateMetadataFile(syncItem);
-                    database.AddMetadataFile(syncItem.LocalPath + ".metadata", syncItem.LocalPath);
+                    database.AddMetadataFile(metadataFile, syncItem.LocalPath);
+                    File.SetAttributes(metadataFile, FileAttributes.Hidden);
 
                     // Create database entry for this file.
                     database.AddFile(syncItem, remoteDocument.Id, remoteDocument.LastModificationDate, metadata, filehash);
@@ -1190,7 +1194,18 @@ namespace CmisSync.Lib.Sync
                 properties[PropertyIds.CreationDate] = File.GetCreationTime(syncItem.LocalPath);
                 properties[PropertyIds.LastModificationDate] = File.GetLastWriteTime(syncItem.LocalPath);
 
-                string metadataFile = syncItem.LocalPath + ".metadata";
+                string metadataFile;
+                try
+                {
+                    metadataFile = database.GetMetadataFileFromFilePath(syncItem.LocalPath);
+                    if (metadataFile == null)
+                        metadataFile = syncItem.LocalPath + ".metadata";
+                }
+                catch(Exception e)
+                {
+                    Logger.Warn("Error while reading metadata table");
+                    metadataFile = syncItem.LocalPath + ".metadata";
+                }
                 //Try Loading metadata file
                 try
                 {

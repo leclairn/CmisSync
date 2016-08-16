@@ -121,7 +121,7 @@ namespace CmisSync.Lib.Sync
                     string token = CmisUtils.GetChangeLogToken(session);
 
                     // Sync.
-                    bool success = CrawlSync(remoteFolder, remotePath, localFolder);
+                    bool success = CrawlRemote(remoteFolder, remotePath, localFolder, new List<string>(), new List<string>());
 
                     // Update ChangeLog token if sync has been successful.
                     if (success)
