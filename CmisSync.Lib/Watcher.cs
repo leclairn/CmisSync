@@ -103,6 +103,7 @@ namespace CmisSync.Lib
                             {
                                 //Move detected...
                                 change = new MovedEventArgs(WatcherChangeTypes.Renamed, dirName, nextDirName, fileName);
+                                watcherEvent = new WatcherEvent(change);
                                 ++i; //Skip nextChange
                             }
                         }

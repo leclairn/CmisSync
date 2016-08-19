@@ -330,10 +330,10 @@ namespace CmisSync.Lib.Sync
 
                         // Go up one level before performing the same thing.
                         remoteSubFolder = remoteSubFolder.Parents[0]; //TODO: Fix Parents[0] for multi-parent repositories
-                        localFolderItem = database.GetFolderSyncItemFromRemotePath(remoteSubFolder.Path);
+                        localFolderItem = database.GetFolderSyncItemFromRemotePath(remoteSubFolder.Path); 
                     };
 
-                    CrawlSync(remoteSubFolder, remoteSubFolder.Path, localFolderItem.LocalPath);
+                    CrawlRemoteFolder(remoteSubFolder, remoteSubFolder.Path, localFolderItem.LocalPath, new List<string>());
                 }
                 else if (cmisObject is DotCMIS.Client.Impl.Document)
                 {

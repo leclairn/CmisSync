@@ -160,6 +160,14 @@ namespace CmisSync.Lib.Sync
                 string newRemoteBaseName = CmisUtils.GetUpperFolderOfCmisPath(newRemoteName);
                 bool newPathnameWorthSyncing = Utils.WorthSyncing(newDirectory, newFilename, repoInfo);
 
+                    // New Metadata File
+                    string metadataFile = database.GetMetadataFileFromFilePath(oldPathname);
+                    if (metadataFile != null)
+                    {
+                        File.Move(metadataFile, newItem.LocalPath + ".metadata");
+                        database.MoveMetadataFile(oldItem, newItem);
+                    }
+
                 // Operations.
                 bool rename = oldDirectory.Equals(newDirectory) && !oldFilename.Equals(newFilename);
                 bool move = !oldDirectory.Equals(newDirectory) && oldFilename.Equals(newFilename);

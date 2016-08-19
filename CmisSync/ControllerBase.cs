@@ -296,7 +296,7 @@ namespace CmisSync
             {
                 if (aRepo.Name == reponame && aRepo.Enabled)
                 {
-
+                    
                     aRepo.ManualSync();
                     Logger.Debug("Requested to manually sync " + aRepo.Name);
                 }

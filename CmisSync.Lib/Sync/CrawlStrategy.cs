@@ -306,6 +306,17 @@ namespace CmisSync.Lib.Sync
                             {
                                 try
                                 {
+                                    // Maybe the folder has been renamed
+                                    // Check the id
+                                    List<SyncItem> oldSyncItems = database.GetAllFoldersWithCmisId(remoteSubFolder.Id);
+                                    if (oldSyncItems != null)
+                                    {
+                                        foreach (SyncItem item in oldSyncItems)
+                                        {
+                                            RemoveFolderLocally(item.LocalPath);
+                                        }
+                                    }
+
                                 // The folder has been recently created on server, so download it.
                                 activityListener.ActivityStarted();
                                 Directory.CreateDirectory(subFolderItem.LocalPath);
@@ -474,6 +485,23 @@ namespace CmisSync.Lib.Sync
                         }
                         else
                         {
+                            // Maybe the file has been renamed
+                            // Check if a file in the local folder with the remote document id exists
+                            string id = remoteDocument.Id;
+                            string filePath = database.GetFilePath(id.Remove(id.IndexOf(";")));
+                            if (filePath != null)
+                            {
+                                File.Delete(filePath);
+                                SyncItem oldSynctItem = database.GetSyncItem(id);
+                                database.RemoveFile(oldSynctItem);
+                                string metadataFile = database.GetMetadataFileFromFilePath(filePath);
+                                if (metadataFile != null)
+                                {
+                                    File.Delete(metadataFile);
+                                    database.RemoveMetadataFile(oldSynctItem);
+                                }
+                            }
+
                             // New remote file, download it.
                             Logger.Info("New remote file: " + syncItem.RemotePath);
                             activityListener.ActivityStarted();
@@ -588,10 +616,16 @@ namespace CmisSync.Lib.Sync
                                     File.Delete(filePath);
 
                                     // Delete metadata file if exist
-                                    File.Delete(database.GetMetadataFileFromFilePath(filePath));
+                                    string metadataFile = database.GetMetadataFileFromFilePath(filePath);
+                                    if (metadataFile != null && File.Exists(metadataFile))
+                                    {
+                                        File.Delete(metadataFile);
+                                    }
 
                                     // Delete file from database.
                                     database.RemoveFile(item);
+                                    // Delete metadat File from database
+                                    database.RemoveMetadataFile(item);
 
                                     activityListener.ActivityStopped();
                                 }
