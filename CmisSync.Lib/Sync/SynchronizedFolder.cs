@@ -452,16 +452,19 @@ namespace CmisSync.Lib.Sync
                     }
                     else
                     {
-                        // Compare locally, in case the watcher did not do its job correctly (that happens, Windows bug).
-                        //ApplyLocalChanges(localFolder);
-
                         // Apply local changes noticed by the filesystem watcher.
-                        WatcherSync(remoteFolderPath, localFolder);
+                        bool success = WatcherSync(remoteFolderPath, localFolder);
+
+                        // Compare locally, in case the watcher did not do its job correctly (that happens, Windows bug).
+                        if (!success)
+                        {
+                            ApplyLocalChanges(localFolder);
+                        }
 
                         if (syncFull)
                         {
                             // Begin with changelog otherwise localchanges will be added to changelog
-                            if (ChangeLogCapability)
+                            if (!ChangeLogCapability)
                             {
                                 Logger.Debug("Invoke a remote change log sync");
                                 ChangeLogThenCrawlSync(remoteFolder, remoteFolderPath, localFolder);
