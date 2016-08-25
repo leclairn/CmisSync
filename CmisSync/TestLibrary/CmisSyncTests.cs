@@ -378,6 +378,44 @@ namespace TestLibrary
             }
         }
 
+        private bool VerifyProperties(IDocument d, GlobalMetaDatas globalMetadatas)
+        {
+            // Verify Type
+            if (d.GetPropertyValue(PropertyIds.ObjectTypeId) as string != globalMetadatas.typename)
+                return false;
+
+            // Verify Aspects
+            foreach (string aspect in globalMetadatas.aspects)
+            {
+                bool found = false;
+                foreach (ISecondaryType s in d.SecondaryTypes)
+                {
+                    if (s.Id == aspect)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found == false)
+                    return false;
+            }
+
+            // Verify Properties
+            foreach (MetaData m in globalMetadatas.metadatas.Mandatory)
+            {
+                if (d.GetPropertyValue(m.type) != m.value)
+                    return false;
+            }
+            foreach (MetaData m in globalMetadatas.metadatas.Optional)
+            {
+                if (d.GetPropertyValue(m.type) != m.value)
+                    return false;
+            }
+
+            // Type, Aspects and Properties verified
+            return true;
+        }
+
         // /////////////////////////// TESTS ///////////////////////////
 
         [Test, TestCaseSource("TestServers"), Category("Medium")]
@@ -865,6 +903,83 @@ namespace TestLibrary
             }
         }
 
+
+        // Goal : Make sure that CmisSync works for uploading a file with metadata
+        [Test, TestCaseSource("TestServers"), Category("Slow")]
+        public void SyncUploadWithMetadata(string canonical_name, string localPath, string remoteFolderPath,
+            string url, string user, string password, string repositoryId)
+        {
+            // Prepare checkout directory.
+            string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
+            CleanDirectory(localDirectory);
+            Console.WriteLine("Synced to clean state.");
+
+            // Mock.
+            IActivityListener activityListener = new Mock<IActivityListener>().Object;
+            // Sync.
+            RepoInfo repoInfo = new RepoInfo(
+                    canonical_name,
+                    CMISSYNCDIR,
+                    remoteFolderPath,
+                    url,
+                    user,
+                    password,
+                    repositoryId,
+                    5000,
+                    false,
+                    DateTime.MinValue,
+                    true);
+
+            using (CmisRepo cmis = new CmisRepo(repoInfo, activityListener))
+            {
+                using (CmisRepo.SynchronizedFolder synchronizedFolder =
+                    new CmisRepo.SynchronizedFolder(repoInfo, cmis, activityListener))
+                using (Watcher watcher = new Watcher(localDirectory))
+                {
+                    // Create a file name
+                    string filename = "file.bin";
+
+                    // Create a metadata file associated to this file name
+                    GlobalMetaDatas globalMetadatas = new GlobalMetaDatas();
+                    globalMetadatas.aspects = new List<string> { "P:cm:titled", "P:cm:author" };
+                    globalMetadatas.typename = "cmis:document";
+                    globalMetadatas.metadatas.addMetaData("cm:title", "file", true);
+                    globalMetadatas.metadatas.addMetaData("cmis:description", "Test file", false);
+                    globalMetadatas.metadatas.addMetaData("cm:author", "Me", true);
+                    globalMetadatas.Save(Path.Combine(localDirectory, filename + ".metadata"));
+
+                    // Create Binary File
+                    int length = 1024;
+                    createOrModifyBinaryFile(Path.Combine(localDirectory, filename), length);
+
+                    // Check if the files are available before the sync
+                    Assert.IsTrue(File.Exists(Path.Combine(localDirectory, filename)));
+                    Assert.IsTrue(File.Exists(Path.Combine(localDirectory, filename + ".metadata")));
+
+                    // Sync until the file is correctly synchronised with his metadatas
+                    Assert.IsTrue(WaitUntilSyncIsDone(synchronizedFolder, delegate {
+                        try
+                        {
+                            string remoteFilePath = (remoteFolderPath + "/" + filename).Replace("//", "/");
+                            IDocument d = (IDocument)CreateSession(repoInfo).GetObjectByPath(remoteFilePath);
+                            if (d == null || d.ContentStreamLength != length)
+                                return false;
+                            // Verify metadata
+                            VerifyProperties(d, globalMetadatas);
+                        }
+                        catch (Exception)
+                        { return false; }
+                        return true;
+                    }));
+
+                    // Check if the files are available after the sync
+                    Assert.IsTrue(File.Exists(Path.Combine(localDirectory, filename)));
+                    Assert.IsTrue(File.Exists(Path.Combine(localDirectory, filename + ".metadata")));
+                }
+            }
+        }
+
         // Goal: Make sure that CmisSync works for uploading modified files.
         [Test, TestCaseSource("TestServers"), Category("Slow")]
         public void SyncUploads(string canonical_name, string localPath, string remoteFolderPath,
@@ -1138,6 +1253,94 @@ namespace TestLibrary
                 }
             }
         }
+
+
+        // Goal: Make sure that CmisSync works for remote changes with metadata.
+        [Test, TestCaseSource("TestServers"), Category("Slow")]
+        public void SyncRemoteWithMetadata(string canonical_name, string localPath, string remoteFolderPath,
+            string url, string user, string password, string repositoryId)
+        {
+            // Prepare checkout directory.
+            string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
+            CleanDirectory(localDirectory);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
+            Console.WriteLine("Synced to clean state.");
+
+            // Mock.
+            IActivityListener activityListener = new Mock<IActivityListener>().Object;
+            // Sync.
+            RepoInfo repoInfo = new RepoInfo(
+                    canonical_name,
+                    CMISSYNCDIR,
+                    remoteFolderPath,
+                    url,
+                    user,
+                    password,
+                    repositoryId,
+                    5000,
+                    false,
+                    DateTime.MinValue,
+                    true);
+
+            using (CmisRepo cmis = new CmisRepo(repoInfo, activityListener))
+            {
+                using (CmisRepo.SynchronizedFolder synchronizedFolder =
+                    new CmisRepo.SynchronizedFolder(repoInfo, cmis, activityListener))
+                using (Watcher watcher = new Watcher(localDirectory))
+                {
+                    FileSystemEventCount count = new FileSystemEventCount();
+                    watcher.ChangeEvent += count.OnFileSystemEvent;
+
+                    synchronizedFolder.Sync();
+                    CleanAll(localDirectory);
+                    WatcherTest.WaitWatcher();
+                    synchronizedFolder.Sync();
+                    Console.WriteLine("Synced to clean state.");
+
+                    ISession session = CreateSession(repoInfo);
+                    IFolder folder = (IFolder)session.GetObjectByPath(remoteFolderPath);
+
+                    string name1 = "SyncChangeLog.1";
+                    string path1 = Path.Combine(localDirectory, name1);
+
+                    // set metadatas of the document 
+                    Dictionary<string, object> dico = new Dictionary<string, object>();
+                    List<string> aspects = new List<string> { "P:cm:titled", "P:cm:author" };
+                    dico[PropertyIds.SecondaryObjectTypeIds] = aspects;
+                    dico["cm:title"] = "Test Sync";
+                    dico["cm:author"] = "Me";
+                    dico["cmis:description"] = "Fichier de Test Sync";
+
+                    //  create document
+                    Console.WriteLine(" Remote create file");
+                    Assert.IsFalse(File.Exists(path1));
+                    IDocument doc1 = CreateDocument(folder, name1, "SyncChangeLog", dico);
+                    Assert.IsTrue(WaitUntilSyncIsDone(synchronizedFolder, delegate {
+                        return File.Exists(path1);
+                    }));
+                    Assert.IsTrue(File.Exists(path1));
+                    Assert.IsTrue(File.Exists(path1 + ".metadata"));
+
+                    // Verify metadatas
+                    GlobalMetaDatas globalMetadatas = GlobalMetaDatas.Load(path1 + ".metadata");
+                    Assert.IsTrue(VerifyProperties(doc1, globalMetadatas));
+
+                    //  delete document
+                    Assert.IsTrue(File.Exists(path1));
+                    doc1.DeleteAllVersions();
+                    Assert.IsTrue(WaitUntilSyncIsDone(synchronizedFolder, delegate {
+                        return !File.Exists(path1);
+                    }));
+                    Assert.IsFalse(File.Exists(path1));
+                    Assert.IsTrue(File.Exists(path1 + ".metadata"));
+
+                    // Clean.
+                    Console.WriteLine("Clean all.");
+                    Clean(localDirectory, synchronizedFolder);
+                }
+            }
+        }
+
 
         // Goal: Make sure that CmisSync works for remote heavy folder changes.
         [Test, TestCaseSource("TestServers"), Category("Slow")]
