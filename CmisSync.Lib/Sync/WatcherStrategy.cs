@@ -388,8 +388,44 @@ namespace CmisSync.Lib.Sync
                 // This is not 100% foolproof, as saving can last for more than the grace time, but probably
                 // the best we can do without mind-reading third-party programs.
                 grace.WaitGraceTime();
-
-                return false; // Perform a sync.
+                try
+                {
+                    bool isFolder = Utils.IsFolder(pathname);
+                    SyncItem item;
+                    if (isFolder)
+                    {
+                        item = database.GetFolderSyncItemFromLocalPath(pathname);
+                        if (item == null)
+                        {
+                            item = SyncItemFactory.CreateFromLocalPath(pathname, isFolder, repoInfo, database);
+                        }
+                        IFolder folder = session.GetObjectByPath(item.RemotePath) as IFolder;
+                        if (folder != null)
+                        {
+                            DeleteRemoteFolder(folder, item, remoteFolder);
+                        }
+                        return true;
+                    }
+                    else
+                    {
+                        item = database.GetSyncItemFromLocalPath(pathname);
+                        if (item == null)
+                        {
+                            item = SyncItemFactory.CreateFromLocalPath(pathname, false, repoInfo, database);
+                        }
+                        IDocument doc = session.GetObjectByPath(pathname) as IDocument;
+                        if (doc == null)
+                        {
+                            DeleteRemoteDocument(doc, item);
+                        }
+                        return true;
+                    }
+                }
+                catch (Exception e)
+                {
+                    ProcessRecoverableException("Could Not process Watch Sync Delete : ", e);
+                    return false;
+                }
             }
         }
     }
