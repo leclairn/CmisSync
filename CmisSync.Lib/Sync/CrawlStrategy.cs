@@ -9,6 +9,7 @@ using System.Globalization;
 using DotCMIS.Client.Impl;
 using CmisSync.Lib.Cmis;
 using DotCMIS.Enums;
+using DotCMIS;
 
 namespace CmisSync.Lib.Sync
 {
@@ -107,6 +108,171 @@ namespace CmisSync.Lib.Sync
             }
 
 
+            private bool CrawlSyncQuery(IFolder remoteFolder, string remoteFolderPath, string localFolder)
+            {
+                bool success = true;
+                try
+                {
+                    //IList<string> remoteFolders = new List<string>();
+
+                    //IList<string> localFolders = database.getfoldersId();
+
+                    IList<string> qFolders = queryAddedAndModifiedFolders(remoteFolder);
+
+                    try
+                    {
+                        // Folders
+                        foreach (string fId in qFolders)
+                        {
+                            IFolder folder = session.GetObject(fId) as IFolder;
+
+                            SyncItem newFolderItem = SyncItemFactory.CreateFromRemoteFolder(folder.Path, repoInfo, database);
+
+                            // Check if the folder already exists
+                            IList<SyncItem> localfolders = database.GetAllFoldersWithCmisId(fId);
+                            if (localfolders != null)
+                            {
+                                foreach (SyncItem oldFolderItem in localfolders)
+                                {
+                                    // if directory did not exists -> Move
+                                    if (!Directory.Exists(newFolderItem.LocalPath))
+                                    {
+                                        Directory.CreateDirectory(newFolderItem.LocalPath);
+                                        Directory.Delete(newFolderItem.LocalPath);
+                                        Directory.Move(oldFolderItem.LocalPath, newFolderItem.LocalPath);
+                                        database.MoveFolder(oldFolderItem, newFolderItem);
+                                    }
+
+                                    /*
+                                    else
+                                    {
+                                        // Directory already exists, move content of the old folder and update database
+                                        
+
+                                        // Files
+                                        foreach (string filePath in Directory.GetFiles(oldFolderItem.LocalPath))
+                                        {
+                                            string fileName = Path.GetFileName(filePath);
+                                            string newFilePath = Path.Combine(newFolderItem.LocalPath, fileName);
+
+                                            File.Move(filePath, newFilePath);
+                                            SyncItem oldFileItem = database.GetSyncItemFromLocalPath(filePath);
+                                            if (oldFileItem == null)
+                                                oldFileItem = SyncItemFactory.CreateFromLocalPath(filePath, false, repoInfo, database);
+
+                                            SyncItem newFileItem = SyncItemFactory.CreateFromLocalPath(newFilePath, false, repoInfo, database);
+
+                                            if (Utils.IsMetadataFile(newFilePath))
+                                            {
+                                                database.MoveMetadataFile(oldFileItem, newFileItem, newFileItem.LocalPath + ".metadata");
+                                            }
+                                            else
+                                            {
+                                                database.MoveFile(oldFileItem, newFileItem);
+                                            }
+                                        }
+                                        */
+                                    }
+                                }
+                            }
+                    }
+                    catch (CmisBaseException e)
+                    {
+                        ProcessRecoverableException("Could not access remote folders : ", e);
+                        success = false;
+                        throw;
+                    }
+
+                    try
+                    {
+                        IList<string> qDocs = queryAddedAndModifiedFiles(remoteFolder);
+
+                        IList<string> remoteFiles = new List<string>();
+                        // Files
+                        foreach (string docId in qDocs)
+                        {
+                            IDocument doc = session.GetObject(docId) as IDocument;
+
+                            SyncItem syncItem = SyncItemFactory.CreateFromRemoteDocument(doc.Paths[0], doc, repoInfo, database);
+
+                            // Check if the file already exists
+                            string id = docId.Remove(docId.IndexOf(';'));
+                            string filePath = database.GetFilePath(id);
+                            if (filePath != null)
+                            {
+                                // File already exists, delete
+                                File.Delete(filePath);
+                                database.RemoveFile(database.GetSyncItemFromLocalPath(filePath));
+                                // Delete Metadata
+                                File.Delete(database.GetMetadataFileFromFilePath(filePath));
+                                database.RemoveMetadataFile(database.GetSyncItemFromLocalPath(filePath));
+                            }
+                            CrawlRemoteDocument(doc, syncItem.RemotePath, syncItem.LocalPath, remoteFiles);
+                        }
+                    }
+                    catch (CmisBaseException e)
+                    {
+                        ProcessRecoverableException("Could not access remote document : ", e);
+                        success = false;
+                        throw;
+                    }
+
+                    database.setLastSyncDate(DateTimeOffset.Now.ToString("O"));
+                }
+                catch (CmisBaseException e)
+                {
+                    ProcessRecoverableException("Could not access remote objects: ", e);
+                    success = false;
+                }
+                catch(Exception e)
+                {
+                    Logger.Error("Error in CrawlSyncQuery", e);
+                    success = false;
+                }
+                return true;
+            }
+
+            private IList<string> queryAddedAndModifiedFiles(IFolder remoteFolder)
+            {
+                string PATH = Utils.getPATH(remoteFolder.Path);
+
+                string query = "SELECT * FROM cmis:document where CONTAINS ('PATH:\""
+                    + PATH + "\"')"
+                    + " AND cmis:lastModificationDate > " + "'" + database.getLastSyncDate() + "'";
+
+                var results = session.Query(query, false);
+
+                List<string> filesId = new List<string>();
+
+                foreach (IQueryResult r in results)
+                {
+                    filesId.Add((string)r.GetPropertyValueById(PropertyIds.ObjectId));
+                }
+
+                return filesId;
+            }
+
+            private IList<string> queryAddedAndModifiedFolders(IFolder remoteFolder)
+            {
+                string PATH = Utils.getPATH(remoteFolder.Path);
+
+                string query = "SELECT * FROM cmis:folder where CONTAINS ('PATH:\""
+                    + PATH + "\"')"
+                    + " AND cmis:lastModificationDate > " + "'" + database.getLastSyncDate() + "'";
+
+                var results = session.Query(query, false);
+
+                List<string> foldersId = new List<string>();
+
+                foreach (IQueryResult r in results)
+                {
+                    foldersId.Add((string)r.GetPropertyValueById(PropertyIds.ObjectId));
+                }
+
+                return foldersId;
+            }
+
+
             /// <summary>
             /// Perform a crawl sync (check all folders and file checksums).
             /// If successful, update the local ChangeLog token.
@@ -121,7 +287,7 @@ namespace CmisSync.Lib.Sync
                     string token = CmisUtils.GetChangeLogToken(session);
 
                     // Sync.
-                    bool success = CrawlRemote(remoteFolder, remotePath, localFolder, new List<string>(), new List<string>());
+                    bool success = CrawlSync(remoteFolder, remotePath, localFolder);
 
                     // Update ChangeLog token if sync has been successful.
                     if (success)
@@ -487,8 +653,8 @@ namespace CmisSync.Lib.Sync
                         {
                             // Maybe the file has been renamed
                             // Check if a file in the local folder with the remote document id exists
-                            string id = remoteDocument.Id;
-                            string filePath = database.GetFilePath(id.Remove(id.IndexOf(";")));
+                            string id = remoteDocument.Id.Remove(remoteDocument.Id.IndexOf(";"));
+                            string filePath = database.GetFilePath(id);
                             if (filePath != null)
                             {
                                 File.Delete(filePath);

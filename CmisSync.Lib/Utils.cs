@@ -137,6 +137,18 @@ namespace CmisSync.Lib
             "lock" //Lock file for folder
         };
 
+        public static string getPATH(string path)
+        {
+            string[] tab = path.Split(new char[]{'/'});
+            string result = "/app:company_home/st:sites/";
+            for(int i = 2; i<tab.Length; i++)
+            {
+                result += "cm:" + tab[i] + "/";
+            }
+            result += "/*";
+            return result;
+        }
+
         /// <summary>
         /// A regular expression to detemine ignored filenames.
         /// </summary>

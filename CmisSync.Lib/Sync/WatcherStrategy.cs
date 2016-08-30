@@ -165,7 +165,7 @@ namespace CmisSync.Lib.Sync
                     if (metadataFile != null)
                     {
                         File.Move(metadataFile, newItem.LocalPath + ".metadata");
-                        database.MoveMetadataFile(oldItem, newItem);
+                        database.MoveMetadataFile(oldItem, newItem, newItem.LocalPath + ".metadata");
                     }
 
                 // Operations.

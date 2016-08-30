@@ -444,7 +444,8 @@ namespace CmisSync.Lib.Sync
                         {
                             // Full sync.
                             success = CrawlSync(remoteFolder, remoteFolderPath, localFolder);
-
+                            if (success)
+                                database.setLastSyncDate(DateTimeOffset.Now.ToString("O"));
                         }
 
                         //If crawl sync failed, retry.
@@ -456,15 +457,19 @@ namespace CmisSync.Lib.Sync
                         bool success = WatcherSync(remoteFolderPath, localFolder);
 
                         // Compare locally, in case the watcher did not do its job correctly (that happens, Windows bug).
-                        if (!success)
+                        if (success)
                         {
                             ApplyLocalChanges(localFolder);
                         }
 
                         if (syncFull)
                         {
+                            // New method
+                            CrawlSyncQuery(remoteFolder, remoteFolderPath, localFolder);
+                            return;
+
                             // Begin with changelog otherwise localchanges will be added to changelog
-                            if (!ChangeLogCapability)
+                            if (ChangeLogCapability)
                             {
                                 Logger.Debug("Invoke a remote change log sync");
                                 ChangeLogThenCrawlSync(remoteFolder, remoteFolderPath, localFolder);

@@ -191,7 +191,9 @@ namespace CmisSync.Lib.Database
 
                         CREATE TABLE IF NOT EXISTS general (
                             key TEXT PRIMARY KEY,
-                            value TEXT);      /* Other data such as ChangeLog token */
+                            value TEXT,
+                            date TEXT);      /* Other data such as ChangeLog token, Date */
+
                         CREATE TABLE IF NOT EXISTS downloads (
                             PATH TEXT PRIMARY KEY,
                             serverSideModificationDate DATE);     /* Download */
@@ -226,7 +228,6 @@ namespace CmisSync.Lib.Database
             }
             return sqliteConnection;
         }
-
 
         /// <summary>
         /// RemoveLocalPrefix a path.
@@ -381,6 +382,46 @@ namespace CmisSync.Lib.Database
         public DbTransaction BeginTransaction()
         {
             return GetSQLiteConnection().BeginTransaction();
+        }
+
+        /// <summary>
+        /// Get date of the last sync
+        /// </summary>
+        public string getLastSyncDate()
+        {
+            return  (string)GetGeneralTableValue("Date");
+        }
+
+        /// <summary>
+        /// Set date of the last sync
+        /// </summary>
+        public void setLastSyncDate(string date)
+        {
+            if (date == null)
+                return;
+            string command = "INSERT OR REPLACE INTO general (key, value) VALUES (\"Date\", @date)";
+            Dictionary<string, object> parameters = new Dictionary<string, object>();
+            parameters.Add("date", date);
+            ExecuteSQLAction(command, parameters);
+            Logger.Info("Database LastSyncDate set to: " + date);
+        }
+
+        /// <summary>
+        /// Get all the folders Id
+        /// </summary>
+        public IList<string> getfoldersId()
+        {
+            string sql = @"SELECT id FROM folders";
+            SQLiteConnection connexion = GetSQLiteConnection();
+            SQLiteCommand command = new SQLiteCommand(sql, connexion);
+            SQLiteDataReader reader = command.ExecuteReader();
+            List<string> result = new List<string>();
+            while (reader.Read())
+            {
+                Console.WriteLine("Id: " + reader["id"]);
+                result.Add(reader["id"] as string);
+            }
+            return result;
         }
 
 
@@ -549,7 +590,7 @@ namespace CmisSync.Lib.Database
         /// <summary>
         /// Move a metadata file.
         /// </summary>
-        public void MoveMetadataFile(SyncItem oldItem, SyncItem newItem)
+        public void MoveMetadataFile(SyncItem oldItem, SyncItem newItem, string metadataPath)
         {
             Dictionary<string, object> parameters = new Dictionary<string, object>();
             parameters.Add("oldFilePath", oldItem.LocalPath);
@@ -582,6 +623,7 @@ namespace CmisSync.Lib.Database
             parameters.Add("substringIndex", oldItem.RemoteRelativePath.Length + 1);
             parameters.Add("newPath", newItem.RemoteRelativePath);
             parameters.Add("newLocalPath", newItem.LocalRelativePath);
+            parameters.Add("ext", ".metadata");
 
             // Update folder itself
             ExecuteSQLAction("UPDATE folders SET path=@newPath, localPath=@newLocalPath WHERE path=@oldPath", parameters);
@@ -591,6 +633,9 @@ namespace CmisSync.Lib.Database
 
             // Update all files under this folder
             ExecuteSQLAction("UPDATE files SET path=@newPath||SUBSTR(path, @substringIndex), localPath=@newLocalPath||SUBSTR(localPath, @substringIndex) WHERE path LIKE @oldPathLike", parameters);
+
+            // Update all metadataFiles under this folder
+            ExecuteSQLAction("UPDATE metadatas SET path=@newLocalPath||SUBSTR(path, @substringIndex)||@ext, filePath=@newLocalPath||SUBSTR(filePath, @substringIndex) WHERE path LIKE @oldPathLike", parameters);
         }
 
 

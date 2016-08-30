@@ -403,13 +403,21 @@ namespace TestLibrary
             // Verify Properties
             foreach (MetaData m in globalMetadatas.metadatas.Mandatory)
             {
-                if (d.GetPropertyValue(m.type) != m.value)
-                    return false;
+                object val = d.GetPropertyValue(m.type);
+                if (val != null)
+                {
+                    if (val.ToString() != m.value.ToString())
+                        return false;
+                }
             }
             foreach (MetaData m in globalMetadatas.metadatas.Optional)
             {
-                if (d.GetPropertyValue(m.type) != m.value)
-                    return false;
+                object val = d.GetPropertyValue(m.type);
+                if (val != null)
+                {
+                    if (val.ToString() != m.value.ToString())
+                        return false;
+                }
             }
 
             // Type, Aspects and Properties verified
@@ -482,7 +490,9 @@ namespace TestLibrary
             metadatasFile.metadatas = new MetaDatas();
             metadatasFile.metadatas.addMetaData("fiducial:domainContainerApplication", "App1", true);
             XmlSerializer serializer = new XmlSerializer(typeof(GlobalMetaDatas));
-            serializer.Serialize(new StreamWriter(pathFile), metadatasFile);
+            StreamWriter writer = new StreamWriter(pathMetadata);
+            serializer.Serialize(writer, metadatasFile);
+            writer.Close();
 
             GlobalMetaDatas loadedMetadatas = serializer.Deserialize(new StreamReader(pathMetadata)) as GlobalMetaDatas;
             Assert.NotNull(loadedMetadatas);
@@ -1050,7 +1060,7 @@ namespace TestLibrary
                             return true;
                         }));
                         // Check, if all local files are available
-                        Assert.AreEqual(files.Count, Directory.GetFiles(localDirectory).Length);
+                        Assert.AreEqual(files.Count * 2, Directory.GetFiles(localDirectory).Length);
                     }
                 }
             }
@@ -1307,6 +1317,7 @@ namespace TestLibrary
                     Dictionary<string, object> dico = new Dictionary<string, object>();
                     List<string> aspects = new List<string> { "P:cm:titled", "P:cm:author" };
                     dico[PropertyIds.SecondaryObjectTypeIds] = aspects;
+                    dico[PropertyIds.ObjectTypeId] = "cmis:document";
                     dico["cm:title"] = "Test Sync";
                     dico["cm:author"] = "Me";
                     dico["cmis:description"] = "Fichier de Test Sync";
@@ -1332,7 +1343,7 @@ namespace TestLibrary
                         return !File.Exists(path1);
                     }));
                     Assert.IsFalse(File.Exists(path1));
-                    Assert.IsTrue(File.Exists(path1 + ".metadata"));
+                    Assert.IsFalse(File.Exists(path1 + ".metadata"));
 
                     // Clean.
                     Console.WriteLine("Clean all.");
