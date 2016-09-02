@@ -385,6 +385,9 @@ namespace CmisSync.Lib.Sync
             {
                 lock (syncLock)
                 {
+                    var test = database.getMetadataInfo();
+                    var t2 = database.getFileInfo();
+
                     autoResetEvent.Reset();
                     repo.OnSyncStart(syncFull);
 
@@ -435,10 +438,10 @@ namespace CmisSync.Lib.Sync
 
                         if (ChangeLogCapability)
                         {
-                            success = CrawlSync(remoteFolder, remoteFolderPath, localFolder);
-                            //After full sync, get latest changelog
+                            //Before full sync, get latest changelog
                             var lastTokenOnServer = CmisUtils.GetChangeLogToken(session);
                             if (success) database.SetChangeLogToken(lastTokenOnServer);
+                            success = CrawlSync(remoteFolder, remoteFolderPath, localFolder);
                         }
                         else
                         {
@@ -453,21 +456,21 @@ namespace CmisSync.Lib.Sync
                     }
                     else
                     {
-                        // Apply local changes noticed by the filesystem watcher.
-                        bool success = WatcherSync(remoteFolderPath, localFolder);
-
-                        // Compare locally, in case the watcher did not do its job correctly (that happens, Windows bug).
-                        if (success)
+                        bool success = true;
+                        if (!syncFull)
                         {
-                            ApplyLocalChanges(localFolder);
+                            // Apply local changes noticed by the filesystem watcher.
+                            success = WatcherSync(remoteFolderPath, localFolder);
                         }
-
-                        if (syncFull)
+                        else
                         {
-                            // New method
-                            CrawlSyncQuery(remoteFolder, remoteFolderPath, localFolder);
-                            return;
-
+                            // Compare locally, in case the watcher did not do its job correctly (that happens, Windows bug).
+                            /*
+                            if (success)
+                            {
+                                ApplyLocalChanges(localFolder);
+                            }
+                            */
                             // Begin with changelog otherwise localchanges will be added to changelog
                             if (ChangeLogCapability)
                             {
@@ -1033,8 +1036,6 @@ namespace CmisSync.Lib.Sync
                     // Create metadata file for this file
                     string metadataFile = syncItem.LocalPath + ".metadata";
                     CreateMetadataFile(syncItem);
-                    database.AddMetadataFile(metadataFile, syncItem.LocalPath);
-                    File.SetAttributes(metadataFile, FileAttributes.Hidden);
 
                     // Create database entry for this file.
                     database.AddFile(syncItem, remoteDocument.Id, remoteDocument.LastModificationDate, metadata, filehash);
@@ -1087,7 +1088,12 @@ namespace CmisSync.Lib.Sync
                                 globalMetadatas.metadatas.addMetaData(prop.Id, prop.Value, false);
                         }
                     }
-                    globalMetadatas.Save(syncItem.LocalPath + ".metadata");
+                    string metadataFile = syncItem.LocalPath + ".metadata";
+                    if (File.Exists(metadataFile))
+                        File.Delete(metadataFile);
+                    globalMetadatas.Save(metadataFile);
+                    database.AddMetadataFile(syncItem);
+                    File.SetAttributes(metadataFile, FileAttributes.Hidden);
                     Logger.Info("Created metadata file : " + syncItem.LocalLeafname + ".metadata");
                 }
                 catch (Exception e)
@@ -1182,7 +1188,7 @@ namespace CmisSync.Lib.Sync
 
                     // Create metadata file
                     CreateMetadataFile(syncItem);
-                    database.AddMetadataFile(syncItem.LocalPath + ".metadata", syncItem.LocalPath);
+                    database.AddMetadataFile(syncItem);
 
                     return true;
                 }
@@ -1202,28 +1208,22 @@ namespace CmisSync.Lib.Sync
                 properties[PropertyIds.CreationDate] = File.GetCreationTime(syncItem.LocalPath);
                 properties[PropertyIds.LastModificationDate] = File.GetLastWriteTime(syncItem.LocalPath);
 
-                string metadataFile;
-                try
-                {
-                    metadataFile = database.GetMetadataFileFromFilePath(syncItem.LocalPath);
-                    if (metadataFile == null)
-                        metadataFile = syncItem.LocalPath + ".metadata";
-                }
-                catch(Exception e)
-                {
-                    Logger.Warn("Error while reading metadata table");
-                    metadataFile = syncItem.LocalPath + ".metadata";
-                }
+                string metadataFile = syncItem.LocalPath + ".metadata";
                 //Try Loading metadata file
                 try
                 {
                     GlobalMetaDatas globalMetadatas = GlobalMetaDatas.Load(metadataFile);
                     properties[PropertyIds.ObjectTypeId] = globalMetadatas.typename;
+                    if (!globalMetadatas.aspects.Contains("sy:hash"))
+                        globalMetadatas.aspects.Add("P:sy:hash");
                     properties[PropertyIds.SecondaryObjectTypeIds] = globalMetadatas.aspects;
+
                     foreach (MetaData.MetaData metadata in globalMetadatas.metadatas.Mandatory)
                     {
                         if (metadata.value != null)
                         {
+                            if (metadata.value is string && (string)metadata.value == "")
+                                continue;
                             properties[metadata.type] = metadata.value;
                         }
                     }
@@ -1231,9 +1231,15 @@ namespace CmisSync.Lib.Sync
                     {
                         if (metadata.value != null)
                         {
+                            if (metadata.value is string && (string)metadata.value == "")
+                                continue;
                             properties[metadata.type] = metadata.value;
                         }
                     }
+
+                    properties["sy:hashDoc"] = Database.Database.Checksum(syncItem.LocalPath);
+                    properties["sy:hashMetadata"] = Database.Database.Checksum(metadataFile);
+
                     return properties;
                 }
                 catch (FileNotFoundException e)
@@ -1521,7 +1527,7 @@ namespace CmisSync.Lib.Sync
                     database.RemoveFile(syncItem);
                     activityListener.ActivityStopped();
                     //Remove metadata file if exist
-                    File.Delete(database.GetMetadataFileFromFilePath(syncItem.LocalPath));
+                    File.Delete(syncItem.LocalPath + ".metadata");
                     database.RemoveMetadataFile(syncItem);
                 }
             }
@@ -1763,7 +1769,9 @@ namespace CmisSync.Lib.Sync
                     database.MoveFolder(SyncItemFactory.CreateFromLocalPath(oldPathname, true, repoInfo, database),
                         SyncItemFactory.CreateFromLocalPath(newPathname, true, repoInfo, database));      // database query
 
+                    var test = database.getMetadataInfo();
                     Logger.InfoFormat("Moved folder: {0} -> {1}", oldPathname, newPathname);
+                    var t2 = database.getFileInfo();
                     return true;
                 }
                 catch (Exception e)

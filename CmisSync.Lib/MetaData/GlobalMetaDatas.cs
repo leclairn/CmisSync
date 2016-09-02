@@ -25,9 +25,12 @@ namespace CmisSync.Lib.MetaData
         public static GlobalMetaDatas Load(string path)
         {
             XmlSerializer serializer = new XmlSerializer(typeof(GlobalMetaDatas));
-            StreamReader reader = new StreamReader(path);
-            GlobalMetaDatas metadatas = (GlobalMetaDatas)serializer.Deserialize(reader);
-            reader.Close();
+            GlobalMetaDatas metadatas;
+            using (StreamReader reader = new StreamReader(path))
+            {
+                metadatas = (GlobalMetaDatas)serializer.Deserialize(reader);
+                reader.Close();
+            }
             return metadatas;
         }
 
@@ -38,9 +41,11 @@ namespace CmisSync.Lib.MetaData
         public void Save(string path)
         {
             XmlSerializer serializer = new XmlSerializer(typeof(GlobalMetaDatas));
-            StreamWriter writer = new StreamWriter(path);
-            serializer.Serialize(writer, this);
-            writer.Close();
+            using (FileStream writer = File.Create(path))
+            {
+                serializer.Serialize(writer, this);
+                writer.Close();
+            }
         }
     }
 

@@ -676,5 +676,15 @@ namespace CmisSync.Lib
             return containedFolder.StartsWith(containingFolder)
                 && containedFolder.Length > containingFolder.Length; // False if same folder.
         }
+
+        public static string RemoveVersion(string id)
+        {
+            if (id == null)
+                return null;
+            if (id.Contains(';'))
+                return id.Remove(id.LastIndexOf(';'));
+            else
+                return id;
+        }
     }
 }

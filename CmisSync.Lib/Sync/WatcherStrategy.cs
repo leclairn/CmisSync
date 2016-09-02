@@ -161,11 +161,14 @@ namespace CmisSync.Lib.Sync
                 bool newPathnameWorthSyncing = Utils.WorthSyncing(newDirectory, newFilename, repoInfo);
 
                     // New Metadata File
-                    string metadataFile = database.GetMetadataFileFromFilePath(oldPathname);
-                    if (metadataFile != null)
+                    string metadataFile = oldPathname + ".metadata";
+                    if (File.Exists(metadataFile))
                     {
                         File.Move(metadataFile, newItem.LocalPath + ".metadata");
-                        database.MoveMetadataFile(oldItem, newItem, newItem.LocalPath + ".metadata");
+                        if (database.ContainsLocalMetadata(metadataFile))
+                            database.MoveMetadataFile(oldItem, newItem);
+                        else
+                            database.AddMetadataFile(newItem);
                     }
 
                 // Operations.
@@ -279,8 +282,13 @@ namespace CmisSync.Lib.Sync
 
                 if (Utils.IsMetadataFile(localPath))
                 {
-                    SyncItem syncItem = database.GetSyncItemFromLocalPath(database.GetFilePathFromMetadataFile(localPath));
+                    var test = database.getMetadataInfo();
+                    string docPath = localPath.Remove(localPath.LastIndexOf('.'));
+                    SyncItem syncItem = database.GetSyncItemFromLocalPath(docPath);
+                    if (syncItem == null)
+                        syncItem = SyncItemFactory.CreateFromLocalPath(docPath, false, repoInfo, database);
                     UpdateMetadatasIfNecessary(syncItem);
+                    var t2 = database.getFileInfo();
                 }
 
                 if (!Utils.WorthSyncing(Path.GetDirectoryName(localPath), localFilename, repoInfo))
@@ -320,6 +328,7 @@ namespace CmisSync.Lib.Sync
                             if (database.LocalFileHasChanged(localPath))
                             {
                                 success = UpdateFile(localPath, remoteBase);
+                                UpdateMetadata(localPath);
                                 Logger.InfoFormat("Update {0}: {1}", localPath, success);
                             }
                             else
@@ -390,36 +399,27 @@ namespace CmisSync.Lib.Sync
                 grace.WaitGraceTime();
                 try
                 {
-                    bool isFolder = Utils.IsFolder(pathname);
-                    SyncItem item;
-                    if (isFolder)
-                    {
-                        item = database.GetFolderSyncItemFromLocalPath(pathname);
-                        if (item == null)
-                        {
-                            item = SyncItemFactory.CreateFromLocalPath(pathname, isFolder, repoInfo, database);
-                        }
-                        IFolder folder = session.GetObjectByPath(item.RemotePath) as IFolder;
-                        if (folder != null)
-                        {
-                            DeleteRemoteFolder(folder, item, remoteFolder);
-                        }
+                    if (Utils.IsMetadataFile(pathname))
+                        // Nothing to do
                         return true;
-                    }
-                    else
-                    {
-                        item = database.GetSyncItemFromLocalPath(pathname);
-                        if (item == null)
-                        {
-                            item = SyncItemFactory.CreateFromLocalPath(pathname, false, repoInfo, database);
-                        }
-                        IDocument doc = session.GetObjectByPath(pathname) as IDocument;
-                        if (doc == null)
-                        {
-                            DeleteRemoteDocument(doc, item);
-                        }
+
+                    SyncItem item = database.GetSyncItemFromLocalPath(pathname);
+                    if (item == null)
+                        // The item must be in the database
+                        return false;
+
+                    ICmisObject cmisObject = session.GetObjectByPath(item.RemotePath);
+                    if (cmisObject == null)
+                        // the object does not exist on the server so nothing to do
                         return true;
-                    }
+
+                    cmisObject.Delete(true);
+
+                    // Folder or File
+                    database.RemoveFolder(item);
+                    database.RemoveFile(item);
+
+                    return true;
                 }
                 catch (Exception e)
                 {
