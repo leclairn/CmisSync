@@ -150,7 +150,7 @@ namespace CmisSync.Lib
         /// <summary>
         /// Timer for syncing after local change is made.
         /// </summary>
-        private readonly double delay_interval = 15 * 1000; //15 seconds.
+        private readonly double delay_interval = 3 * 1000; //15 seconds.
 
         /// <summary>
         /// When the last full sync completed.

@@ -10,6 +10,7 @@ using DotCMIS.Client.Impl;
 using CmisSync.Lib.Cmis;
 using DotCMIS.Enums;
 using DotCMIS;
+using System.Diagnostics;
 
 namespace CmisSync.Lib.Sync
 {
@@ -142,7 +143,7 @@ namespace CmisSync.Lib.Sync
                                         //Directory.Delete(newFolderItem.LocalPath);
                                         Directory.Move(oldFolderItem.LocalPath, newFolderItem.LocalPath);
                                         database.MoveFolder(oldFolderItem, newFolderItem);
-                                        var test = database.getMetadataInfo();
+                                        //var test = database.getMetadataInfo();
                                     }
 
                                     /*
@@ -764,15 +765,6 @@ namespace CmisSync.Lib.Sync
                                     // If file has changed locally, move to 'your_version' and warn about conflict
                                     if (BIDIRECTIONAL)
                                     {
-                                        // Use Extractor 
-                                        try
-                                        {
-                                            //ConsoleApplication1.Program.ExtractMetaDatas(filePath);
-                                        }
-                                        catch(Exception e)
-                                        {
-                                            Logger.Error("Metadatas Extraction of " + filePath + " failed", e);
-                                        }
                                         // Local file was updated, sync up.
                                         Logger.Info("Uploading locally edited remotely removed file from the repository: " + filePath);
                                         activityListener.ActivityStarted();

@@ -385,8 +385,6 @@ namespace CmisSync.Lib.Sync
             {
                 lock (syncLock)
                 {
-                    var test = database.getMetadataInfo();
-                    var t2 = database.getFileInfo();
 
                     autoResetEvent.Reset();
                     repo.OnSyncStart(syncFull);
@@ -1209,6 +1207,21 @@ namespace CmisSync.Lib.Sync
                 properties[PropertyIds.LastModificationDate] = File.GetLastWriteTime(syncItem.LocalPath);
 
                 string metadataFile = syncItem.LocalPath + ".metadata";
+
+                // Use Extractor 
+                try
+                {
+                    ConsoleApplication1.Program prog = new ConsoleApplication1.Program(syncItem.LocalPath);
+                    Thread thread = new Thread(new ThreadStart(prog.DoWork));
+                    thread.SetApartmentState(ApartmentState.STA);
+                    thread.Start();
+                    thread.Join();
+                }
+                catch (Exception e)
+                {
+                    Logger.Error("Metadatas Extraction of " + syncItem.LocalPath + " failed", e);
+                }
+
                 //Try Loading metadata file
                 try
                 {
@@ -1247,6 +1260,10 @@ namespace CmisSync.Lib.Sync
                     Logger.Info(metadataFile + " did not exist. Using default properties");
                     // Use Default properties
                     properties[PropertyIds.ObjectTypeId] = "cmis:document";
+                    properties[PropertyIds.SecondaryObjectTypeIds] = new List<string> { "P:sy:hash" };
+                    properties["sy:hashDoc"] = Database.Database.Checksum(syncItem.LocalPath);
+                    properties["sy:hashMetadata"] = Database.Database.Checksum(metadataFile);
+
                     return properties;
                 }
                 catch (Exception e)
@@ -1353,12 +1370,19 @@ namespace CmisSync.Lib.Sync
             /// </summary>
             private void UpdateMetadata(string path)
             {
-                SyncItem syncItem = database.GetSyncItemFromLocalPath(path);
+                try
+                {
+                    SyncItem syncItem = database.GetSyncItemFromLocalPath(path);
 
-                Dictionary<string, object> properties = PrepareCustomProperties(syncItem);
+                    Dictionary<string, object> properties = PrepareCustomProperties(syncItem);
 
-                IDocument doc = (IDocument)session.GetObjectByPath(syncItem.RemotePath);
-                doc.UpdateProperties(properties);
+                    IDocument doc = (IDocument)session.GetObjectByPath(syncItem.RemotePath);
+                    doc.UpdateProperties(properties);
+                }
+                catch(CmisBaseException e)
+                {
+                    ProcessRecoverableException("Cannot update metadatas of " + path, e);
+                }
             }
 
 
@@ -1769,9 +1793,7 @@ namespace CmisSync.Lib.Sync
                     database.MoveFolder(SyncItemFactory.CreateFromLocalPath(oldPathname, true, repoInfo, database),
                         SyncItemFactory.CreateFromLocalPath(newPathname, true, repoInfo, database));      // database query
 
-                    var test = database.getMetadataInfo();
                     Logger.InfoFormat("Moved folder: {0} -> {1}", oldPathname, newPathname);
-                    var t2 = database.getFileInfo();
                     return true;
                 }
                 catch (Exception e)

@@ -282,13 +282,11 @@ namespace CmisSync.Lib.Sync
 
                 if (Utils.IsMetadataFile(localPath))
                 {
-                    var test = database.getMetadataInfo();
                     string docPath = localPath.Remove(localPath.LastIndexOf('.'));
                     SyncItem syncItem = database.GetSyncItemFromLocalPath(docPath);
                     if (syncItem == null)
                         syncItem = SyncItemFactory.CreateFromLocalPath(docPath, false, repoInfo, database);
                     UpdateMetadatasIfNecessary(syncItem);
-                    var t2 = database.getFileInfo();
                 }
 
                 if (!Utils.WorthSyncing(Path.GetDirectoryName(localPath), localFilename, repoInfo))
