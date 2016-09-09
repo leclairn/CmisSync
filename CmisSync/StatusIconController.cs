@@ -57,6 +57,16 @@ namespace CmisSync
         private static readonly ILog Logger = LogManager.GetLogger(typeof(StatusIconController));
 
         /// <summary>
+        /// Update folders event.
+        /// </summary>
+        public event UpdateFoldersHandler UpdateFoldersEvent = delegate { };
+
+        /// <summary>
+        /// Update folders event.
+        /// </summary>
+        public delegate void UpdateFoldersHandler();
+
+        /// <summary>
         /// Update icon event.
         /// </summary>
         public event UpdateIconEventHandler UpdateIconEvent = delegate { };
@@ -208,6 +218,7 @@ namespace CmisSync
                         StateText = Properties_Resources.FilesUpToDate;
                 }
 
+                UpdateFoldersEvent();
                 UpdateStatusItemEvent(StateText);
                 UpdateIconEvent(CurrentState == IconState.Error ? -1 : 0);
                 UpdateMenuEvent(CurrentState);

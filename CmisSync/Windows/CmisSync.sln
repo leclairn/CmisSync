@@ -28,6 +28,8 @@ Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "InstallerBootstrapper", "In
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApplication1", "..\..\DataSync\ConsoleApplication1\ConsoleApplication1.csproj", "{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}"
 EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "FidusyncSetup", "FidusyncSetup\FidusyncSetup.vdproj", "{BAECAD0C-883F-4D10-873F-98ACCDD363B9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -142,6 +144,12 @@ Global
 		{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}.Release|x86.ActiveCfg = Release|Any CPU
 		{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}.Release|x86.Build.0 = Release|Any CPU
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Debug|Any CPU.ActiveCfg = Debug
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Debug|Mixed Platforms.ActiveCfg = Debug
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Debug|x86.ActiveCfg = Debug
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Release|Any CPU.ActiveCfg = Release
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Release|Mixed Platforms.ActiveCfg = Release
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Release|x86.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

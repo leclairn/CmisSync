@@ -417,6 +417,13 @@ namespace CmisSync.Lib.Sync
                     database.RemoveFolder(item);
                     database.RemoveFile(item);
 
+                    // Remove metadata if exists
+                    if (File.Exists(pathname + ".metadata"))
+                    {
+                        File.Delete(pathname + ".metadata");
+                        database.RemoveMetadataFile(item);
+                    }
+
                     return true;
                 }
                 catch (Exception e)
