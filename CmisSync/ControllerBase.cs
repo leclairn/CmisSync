@@ -26,6 +26,8 @@ using System.Collections.ObjectModel;
 
 using CmisSync.Lib.Cmis;
 using CmisSync.Auth;
+using System.Xml.Serialization;
+using CmisSync.Lib.Conf;
 
 #if __COCOA__
 // using Edit = CmisSync.EditWizardController;
@@ -235,10 +237,59 @@ namespace CmisSync
             new Thread(() =>
             {
                 CheckRepositories();
+
+                //Check Conf.xml
+                //CheckConf();
+
                 RepositoriesLoaded = true;
                 // Update GUI.
                 FolderListChanged();
             }).Start();
+        }
+
+        /// <summary>
+        /// Check the repositories from conf.xml
+        /// </summary>
+        private void CheckConf()
+        {
+            XmlSerializer serializer = new XmlSerializer(typeof(Conf));
+            Conf conf = serializer.Deserialize(File.OpenRead(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "cmissync", "conf.xml"))) as Conf;
+            if (conf == null)
+                throw new Exception("Problème de Cast");
+
+            foreach (Application app in conf.applications)
+            {
+                foreach (FolderName folder in app.folders)
+                {
+                    string localpath = ConfigManager.CurrentConfig.FoldersPath + folder.name;
+                    if (Directory.Exists(localpath) && ConfigManager.CurrentConfig.GetFolder(folder.name) != null)
+                        continue;
+                    if (!Directory.Exists(localpath) && ConfigManager.CurrentConfig.GetFolder(folder.name) == null)
+                    {
+                        CreateRepository(folder.name, new Uri(conf.url), app.user, app.password, conf.repository,
+                            folder.remotePath, localpath, new List<string>(), true);
+                        continue;
+                    }
+                    if (Directory.Exists(localpath) && ConfigManager.CurrentConfig.GetFolder(folder.name) == null)
+                    {
+                        RepoInfo repoInfo = new RepoInfo(folder.name, ConfigManager.CurrentConfig.ConfigPath);
+                        repoInfo.Address = new Uri(conf.url);
+                        repoInfo.User = app.user;
+                        repoInfo.Password = new Password(app.password);
+                        repoInfo.RepoID = conf.repository;
+                        repoInfo.RemotePath = folder.remotePath;
+                        repoInfo.TargetDirectory = localpath;
+                        repoInfo.PollInterval = Config.DEFAULT_POLL_INTERVAL;
+                        repoInfo.IsSuspended = false;
+                        repoInfo.LastSuccessedSync = new DateTime(1900, 01, 01);
+                        repoInfo.SyncAtStartup = true;
+                        repoInfo.MaxUploadRetries = 2;
+
+                        ConfigManager.CurrentConfig.AddFolder(repoInfo);
+                        AddRepository(repoInfo);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -353,7 +404,7 @@ namespace CmisSync
             {
                 foreach (RepoBase aRepo in this.repositories)
                 {
-                    if(aRepo.Name.Equals(repoName))
+                    if (aRepo.Name.Equals(repoName))
                     {
                         if (aRepo.Enabled)
                         {
@@ -404,7 +455,7 @@ namespace CmisSync
                 {
                     if (aRepo.Name.Equals(repoName))
                     {
-                    if ( ! aRepo.Enabled)
+                        if (!aRepo.Enabled)
                         {
                             aRepo.Enable();
                             Logger.Debug("Requested to resume sync of repo " + aRepo.Name);
