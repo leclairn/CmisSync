@@ -14,7 +14,7 @@ namespace TestLibrary
     [TestFixture]
     public class WatcherTest
     {
-        private static readonly string TestFolderParent = Directory.GetCurrentDirectory();
+        private static readonly string TestFolderParent = ConfigManager.CurrentConfig.FoldersPath;
         private static readonly string TestFolder = Path.Combine(TestFolderParent, "test");
         private static readonly int NormalNumber = 10;
         private static readonly int HeavyNumber = 10000;
@@ -524,21 +524,18 @@ namespace TestLibrary
         }*/
 
         [Test, Category("Slow")]
-        [Ignore]
         public void TestChangeTypeForMoveHeavy()
         {
             //Assert.Fail("TODO");
         }
 
         [Test, Category("Fast")]
-        [Ignore]
         public void TestChangeTypeMix()
         {
             //Assert.Fail("TODO");
         }
 
         [Test, Category("Slow")]
-        [Ignore]
         public void TestChangeTypeMixHeavy()
         {
             //Assert.Fail("TODO");

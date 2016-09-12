@@ -53,6 +53,16 @@ namespace CmisSync.Lib
             userNotificationListener.NotifyUser(message);
         }
 
+        /// <summary>
+        /// Send a message to the end user.
+        /// </summary>
+        public static bool IsMetadataFile(string path)
+        {
+            if (Path.GetExtension(path) == ".metadata")
+                return true;
+            else
+                return false;
+        }
 
         /// <summary>
         /// Check whether the current user has write permission to the specified path.
@@ -127,6 +137,18 @@ namespace CmisSync.Lib
             "lock" //Lock file for folder
         };
 
+        public static string getPATH(string path)
+        {
+            string[] tab = path.Split(new char[]{'/'});
+            string result = "/app:company_home/st:sites/";
+            for(int i = 2; i<tab.Length; i++)
+            {
+                result += "cm:" + tab[i] + "/";
+            }
+            result += "/*";
+            return result;
+        }
+
         /// <summary>
         /// A regular expression to detemine ignored filenames.
         /// </summary>
@@ -152,6 +174,7 @@ namespace CmisSync.Lib
             "tmp", // Microsoft Office
             "sync", // CmisSync download
             "cmissync", // CmisSync database
+            "metadata", // Metadata File
         };
 
         /// <summary>
@@ -652,6 +675,16 @@ namespace CmisSync.Lib
         {
             return containedFolder.StartsWith(containingFolder)
                 && containedFolder.Length > containingFolder.Length; // False if same folder.
+        }
+
+        public static string RemoveVersion(string id)
+        {
+            if (id == null)
+                return null;
+            if (id.Contains(';'))
+                return id.Remove(id.LastIndexOf(';'));
+            else
+                return id;
         }
     }
 }

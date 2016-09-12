@@ -347,7 +347,6 @@ namespace CmisSync
             {
                 if (aRepo.Name == reponame && aRepo.Enabled)
                 {
-
                     aRepo.ManualSync();
                     Logger.Debug("Requested to manually sync " + aRepo.Name);
                 }
@@ -404,7 +403,7 @@ namespace CmisSync
             {
                 foreach (RepoBase aRepo in this.repositories)
                 {
-                    if (aRepo.Name.Equals(repoName))
+                    if(aRepo.Name.Equals(repoName))
                     {
                         if (aRepo.Enabled)
                         {
@@ -455,7 +454,7 @@ namespace CmisSync
                 {
                     if (aRepo.Name.Equals(repoName))
                     {
-                        if (!aRepo.Enabled)
+                    if ( ! aRepo.Enabled)
                         {
                             aRepo.Enable();
                             Logger.Debug("Requested to resume sync of repo " + aRepo.Name);

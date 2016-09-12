@@ -15,7 +15,7 @@ namespace TestLibrary
         [Test, Category("Slow")]
         public void TestConfig()
         {
-            string configpath = Path.GetFullPath("testconfig.conf");
+            string configpath = Path.GetFullPath(ConfigManager.CurrentConfig.ConfigPath + "testconfig.conf");
             try
             {
                 //Create new config file with default values

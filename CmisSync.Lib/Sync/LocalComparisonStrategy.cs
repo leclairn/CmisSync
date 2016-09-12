@@ -88,7 +88,7 @@ namespace CmisSync.Lib.Sync
                 {
                     // Check whether this file is present in database.
                     string filePath = Path.Combine(folder, file);
-                    if ( ! database.ContainsLocalFile(filePath))
+                    if (!database.ContainsLocalFile(filePath) && Path.GetExtension(filePath) != ".metadata")
                     {
                         addedFiles.Add(filePath);
                     }
@@ -431,3 +431,4 @@ namespace CmisSync.Lib.Sync
         }
     }
 }
+ 

@@ -14,6 +14,9 @@ using CmisSync.Lib.Cmis;
 
 using log4net;
 using log4net.Config;
+using DotCMIS.Client;
+using CmisSync.Auth;
+using NUnit.Framework;
 
 // Useful to debug unit tests.
 namespace TestLibraryRunner
@@ -41,6 +44,7 @@ namespace TestLibraryRunner
 
             new CmisSyncTests().Sync((string)server[0], (string)server[1],
                     (string)server[2], (string)server[3], (string)server[4], (string)server[5], (string)server[6]);
+
         }
 
         static void testFuzzy()
@@ -81,8 +85,20 @@ namespace TestLibraryRunner
                 log4net.Config.XmlConfigurator.Configure(ConfigManager.CurrentConfig.GetLog4NetConfig());
             }
 
+            IEnumerable<object[]> servers = JsonConvert.DeserializeObject<List<object[]>>(
+                    File.ReadAllText("../../../TestLibrary/test-servers.json"));
+            object[] server = servers.ElementAt(serverId);
+            Dictionary<string, string> prop = new Dictionary<string, string>();
+            prop["name"] = (string)server[0];
+            prop["localFolder"] = (string)server[1];
+            prop["remoteFolder"] = (string)server[2];
+            prop["url"] = (string)server[3];
+            prop["user"] = (string)server[4];
+            prop["password"] = (string)server[5];
+            prop["repoId"] = (string)server[6];
+
             //new CmisSyncTests().TestCrypto();
-            test(path == null ? "../../../TestLibrary/test-servers.json" : path);
+            //test(path == null ? "../../../TestLibrary/test-servers.json" : path);
             //testFuzzy();
         }
     }

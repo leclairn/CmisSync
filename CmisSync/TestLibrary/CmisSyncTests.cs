@@ -50,8 +50,9 @@ namespace TestLibrary
     using NUnit.Framework;
     using CmisSync.Auth;
     using CmisSync.Lib.Database;
-
-    /// <summary></summary>
+    using CmisSync.Lib.MetaData;
+    using System.Xml.Serialization;
+    using static WatcherTest;/// <summary></summary>
     [TestFixture]
     public class CmisSyncTests
     {
@@ -94,7 +95,7 @@ namespace TestLibrary
             foreach( string file in Directory.GetFiles(CMISSYNCDIR)) {
                 if(file.EndsWith(".cmissync"))
                 {
-                    File.Delete(file);
+                    //File.Delete(file);
                 }
                     
             }
@@ -105,7 +106,7 @@ namespace TestLibrary
         {
             get
             {
-                string path = "../../test-servers.json";
+                string path = @"C:\Users\adminprojetindus\Documents\CmisSync\CmisSync\TestLibrary\test-servers.json";
                 bool exists = File.Exists(path);
 
                 if (!exists)
@@ -123,7 +124,7 @@ namespace TestLibrary
         {
             get
             {
-                string path = "../../test-servers-fuzzy.json";
+                string path = @"C:\Users\adminprojetindus\Documents\CmisSync\CmisSync\TestLibrary\test-servers.json";
                 bool exists = File.Exists(path);
 
                 if (!exists)
@@ -240,9 +241,23 @@ namespace TestLibrary
 
         public IDocument CreateDocument(IFolder folder, string name, string content)
         {
+            Assert.IsNotNull(folder);
             Dictionary<string, object> properties = new Dictionary<string, object>();
             properties.Add(PropertyIds.Name, name);
             properties.Add(PropertyIds.ObjectTypeId, "cmis:document");
+
+            ContentStream contentStream = new ContentStream();
+            contentStream.FileName = name;
+            contentStream.MimeType = MimeType.GetMIMEType(name);
+            contentStream.Length = content.Length;
+            contentStream.Stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+
+            return folder.CreateDocument(properties, contentStream, null);
+        }
+
+        public IDocument CreateDocument(IFolder folder, string name, string content, Dictionary<string, object> properties)
+        {
+            properties[PropertyIds.Name] = name;
 
             ContentStream contentStream = new ContentStream();
             contentStream.FileName = name;
@@ -363,7 +378,198 @@ namespace TestLibrary
             }
         }
 
+        private bool VerifyProperties(IDocument d, GlobalMetaDatas globalMetadatas)
+        {
+            // Verify Type
+            if (d.GetPropertyValue(PropertyIds.ObjectTypeId) as string != globalMetadatas.typename)
+                return false;
+
+            // Verify Aspects
+            foreach (string aspect in globalMetadatas.aspects)
+            {
+                bool found = false;
+                foreach (ISecondaryType s in d.SecondaryTypes)
+                {
+                    if (s.Id == aspect)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found == false)
+                    return false;
+            }
+
+            // Verify Properties
+            foreach (MetaData m in globalMetadatas.metadatas.Mandatory)
+            {
+                object val = d.GetPropertyValue(m.type);
+                if (val != null)
+                {
+                    if (val.ToString() != m.value.ToString())
+                        return false;
+                }
+            }
+            foreach (MetaData m in globalMetadatas.metadatas.Optional)
+            {
+                object val = d.GetPropertyValue(m.type);
+                if (val != null)
+                {
+                    if (val.ToString() != m.value.ToString())
+                        return false;
+                }
+            }
+
+            // Type, Aspects and Properties verified
+            return true;
+        }
+
         // /////////////////////////// TESTS ///////////////////////////
+
+        [Test, TestCaseSource("TestServers"), Category("Medium")]
+        public void TestCreateDocument(string canonical_name, string localPath, string remoteFolderPath,
+            string url, string user, string password, string repositoryId)
+        {
+            ISession session = Auth.GetCmisSession(url, user, password, repositoryId);
+            IFolder folder = session.GetObjectByPath(remoteFolderPath) as IFolder;
+            Assert.IsNotNull(folder);
+            IDocument doc = CreateDocument(folder, "Test", "Test");
+            Assert.IsNotNull(doc);
+            ICmisObject foundDoc = session.GetObject(doc);
+            Assert.NotNull(foundDoc);
+            Assert.IsTrue(doc.Id == foundDoc.Id);
+            doc.Delete(true);
+        }
+
+        [Test, TestCaseSource("TestServers"), Category("Medium")]
+        public void TestCreateDocumentWithMetadata(string canonical_name, string localPath, string remoteFolderPath,
+            string url, string user, string password, string repositoryId)
+        {
+            Dictionary<string, object> properties = new Dictionary<string, object>();
+            properties[PropertyIds.ObjectTypeId] = "D:fiducial_recette:type_paie";
+
+            List<string> aspects = new List<string>();
+            aspects.Add("P:fiducial:domainContainer");
+            aspects.Add("P:cm:titled");
+            aspects.Add("P:cm:author");
+            aspects.Add("P:fiducial_recette:paie");
+            properties[PropertyIds.SecondaryObjectTypeIds] = aspects;
+            properties["fiducial:domainContainerApplication"] = "App1";
+
+            ISession session = Auth.GetCmisSession(url, user, password, repositoryId);
+            IFolder folder = session.GetObjectByPath(remoteFolderPath) as IFolder;
+            Assert.IsNotNull(folder);
+            IDocument doc = CreateDocument(folder, "Test", "Test", properties);
+            Assert.IsNotNull(doc);
+            ICmisObject foundDoc = session.GetObject(doc);
+            Assert.NotNull(foundDoc);
+            Assert.IsTrue(doc.Id == foundDoc.Id);
+            doc.Delete(true);
+        }
+
+        [Test, TestCaseSource("TestServers"), Category("Metadata")]
+        public void TestCreateDocumentWithMetadataFile(string canonical_name, string localPath, string remoteFolderPath,
+            string url, string user, string password, string repositoryId)
+        {
+            string pathFile = CMISSYNCDIR + "/Test";
+            string pathMetadata = CMISSYNCDIR + "/Test.metadata";
+
+            string[] content = { "Hello World" };
+            File.WriteAllLines(pathFile, content);
+            GlobalMetaDatas metadatasFile = new GlobalMetaDatas();
+
+            metadatasFile.typename = "D:fiducial_recette:type_paie";
+
+            List<string> aspects = new List<string>();
+            aspects.Add("P:fiducial:domainContainer");
+            aspects.Add("P:cm:titled");
+            aspects.Add("P:cm:author");
+            aspects.Add("P:fiducial_recette:paie");
+            metadatasFile.aspects = aspects;
+
+            metadatasFile.metadatas = new MetaDatas();
+            metadatasFile.metadatas.addMetaData("fiducial:domainContainerApplication", "App1", true);
+            XmlSerializer serializer = new XmlSerializer(typeof(GlobalMetaDatas));
+            StreamWriter writer = new StreamWriter(pathMetadata);
+            serializer.Serialize(writer, metadatasFile);
+            writer.Close();
+
+            GlobalMetaDatas loadedMetadatas = serializer.Deserialize(new StreamReader(pathMetadata)) as GlobalMetaDatas;
+            Assert.NotNull(loadedMetadatas);
+
+            Dictionary<string, object> properties = new Dictionary<string, object>();
+            properties[PropertyIds.ObjectTypeId] = loadedMetadatas.typename;
+            properties[PropertyIds.SecondaryObjectTypeIds] = loadedMetadatas.aspects;
+            foreach(MetaData m in loadedMetadatas.metadatas.Mandatory)
+            {
+                properties[m.type] = m.value;
+            }
+            foreach (MetaData m in loadedMetadatas.metadatas.Optional)
+            {
+                properties[m.type] = m.value;
+            }
+
+            ISession session = Auth.GetCmisSession(url, user, password, repositoryId);
+            IFolder folder = session.GetObjectByPath(remoteFolderPath) as IFolder;
+            Assert.IsNotNull(folder);
+            IDocument doc = CreateDocument(folder, Path.GetFileName(pathFile),
+                "Hello World", properties);
+            Assert.IsNotNull(doc);
+            ICmisObject foundDoc = session.GetObject(doc);
+            Assert.NotNull(foundDoc);
+            Assert.IsTrue(doc.Id == foundDoc.Id);
+            doc.Delete(true);
+        }
+
+        [Test, TestCaseSource("TestServers"), Category("Metadata")]
+        public void DownloadDocumentWithMetadata(string canonical_name, string localPath, string remoteFolderPath,
+            string url, string user, string password, string repositoryId)
+        {
+            //Create Document
+            Dictionary<string, object> properties = new Dictionary<string, object>();
+            properties[PropertyIds.ObjectTypeId] = "D:fiducial_recette:type_paie";
+
+            List<string> aspects = new List<string>();
+            aspects.Add("P:fiducial:domainContainer");
+            aspects.Add("P:cm:titled");
+            aspects.Add("P:cm:author");
+            aspects.Add("P:fiducial_recette:paie");
+            properties[PropertyIds.SecondaryObjectTypeIds] = aspects;
+            properties["fiducial:domainContainerApplication"] = "App1";
+
+            ISession session = Auth.GetCmisSession(url, user, password, repositoryId);
+            IFolder folder = session.GetObjectByPath(remoteFolderPath) as IFolder;
+            Assert.IsNotNull(folder);
+            IDocument doc = CreateDocument(folder, "Down4", "Down", properties);
+
+            GlobalMetaDatas metadatas = new GlobalMetaDatas();
+            metadatas.typename = doc.GetPropertyValue(PropertyIds.ObjectId) as string;
+            Assert.NotNull(metadatas.typename);
+            List<object> getAspects = (List<object>)doc.GetPropertyValue(PropertyIds.SecondaryObjectTypeIds);
+            Assert.NotNull(getAspects);
+
+            List<string> getAspectsToString = new List<string>();
+            foreach(object o in getAspects)
+            {
+                string aspect = o as string;
+                if (aspect != null)
+                    metadatas.aspects.Add(aspect);
+            }
+
+            foreach(IProperty prop in doc.Properties)
+            {
+                if (!prop.IsMultiValued && prop.PropertyDefinition.Updatability == DotCMIS.Enums.Updatability.ReadWrite) {
+                    if (prop.PropertyDefinition.IsRequired == true)
+                        metadatas.metadatas.addMetaData(prop.Id, prop.Value, true);
+                    else
+                        metadatas.metadatas.addMetaData(prop.Id, prop.Value, false);
+                }
+            }
+
+            XmlSerializer xml = new XmlSerializer(typeof(GlobalMetaDatas));
+            xml.Serialize(new StreamWriter(CMISSYNCDIR + "/Down.metadata"), metadatas);
+            doc.Delete(true);
+        }
 
         [Test, Category("Fast")]
         public void Placebo()
@@ -569,10 +775,12 @@ namespace TestLibrary
         }*/
 
         [Test, TestCaseSource("TestServers"), Category("Slow")]
-        [Ignore]
         public void ResumeBigFile(string canonical_name, string localPath, string remoteFolderPath,
             string url, string user, string password, string repositoryId)
         {
+            //Clean Remote Folder
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
+
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
             string canonical_name2 = canonical_name + ".BigFile";
@@ -705,6 +913,83 @@ namespace TestLibrary
             }
         }
 
+
+        // Goal : Make sure that CmisSync works for uploading a file with metadata
+        [Test, TestCaseSource("TestServers"), Category("Slow")]
+        public void SyncUploadWithMetadata(string canonical_name, string localPath, string remoteFolderPath,
+            string url, string user, string password, string repositoryId)
+        {
+            // Prepare checkout directory.
+            string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
+            CleanDirectory(localDirectory);
+            Console.WriteLine("Synced to clean state.");
+
+            // Mock.
+            IActivityListener activityListener = new Mock<IActivityListener>().Object;
+            // Sync.
+            RepoInfo repoInfo = new RepoInfo(
+                    canonical_name,
+                    CMISSYNCDIR,
+                    remoteFolderPath,
+                    url,
+                    user,
+                    password,
+                    repositoryId,
+                    5000,
+                    false,
+                    DateTime.MinValue,
+                    true);
+
+            using (CmisRepo cmis = new CmisRepo(repoInfo, activityListener))
+            {
+                using (CmisRepo.SynchronizedFolder synchronizedFolder =
+                    new CmisRepo.SynchronizedFolder(repoInfo, cmis, activityListener))
+                using (Watcher watcher = new Watcher(localDirectory))
+                {
+                    // Create a file name
+                    string filename = "file.bin";
+
+                    // Create a metadata file associated to this file name
+                    GlobalMetaDatas globalMetadatas = new GlobalMetaDatas();
+                    globalMetadatas.aspects = new List<string> { "P:cm:titled", "P:cm:author" };
+                    globalMetadatas.typename = "cmis:document";
+                    globalMetadatas.metadatas.addMetaData("cm:title", "file", true);
+                    globalMetadatas.metadatas.addMetaData("cmis:description", "Test file", false);
+                    globalMetadatas.metadatas.addMetaData("cm:author", "Me", true);
+                    globalMetadatas.Save(Path.Combine(localDirectory, filename + ".metadata"));
+
+                    // Create Binary File
+                    int length = 1024;
+                    createOrModifyBinaryFile(Path.Combine(localDirectory, filename), length);
+
+                    // Check if the files are available before the sync
+                    Assert.IsTrue(File.Exists(Path.Combine(localDirectory, filename)));
+                    Assert.IsTrue(File.Exists(Path.Combine(localDirectory, filename + ".metadata")));
+
+                    // Sync until the file is correctly synchronised with his metadatas
+                    Assert.IsTrue(WaitUntilSyncIsDone(synchronizedFolder, delegate {
+                        try
+                        {
+                            string remoteFilePath = (remoteFolderPath + "/" + filename).Replace("//", "/");
+                            IDocument d = (IDocument)CreateSession(repoInfo).GetObjectByPath(remoteFilePath);
+                            if (d == null || d.ContentStreamLength != length)
+                                return false;
+                            // Verify metadata
+                            VerifyProperties(d, globalMetadatas);
+                        }
+                        catch (Exception)
+                        { return false; }
+                        return true;
+                    }));
+
+                    // Check if the files are available after the sync
+                    Assert.IsTrue(File.Exists(Path.Combine(localDirectory, filename)));
+                    Assert.IsTrue(File.Exists(Path.Combine(localDirectory, filename + ".metadata")));
+                }
+            }
+        }
+
         // Goal: Make sure that CmisSync works for uploading modified files.
         [Test, TestCaseSource("TestServers"), Category("Slow")]
         public void SyncUploads(string canonical_name, string localPath, string remoteFolderPath,
@@ -712,6 +997,7 @@ namespace TestLibrary
         {
                         // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
             CleanDirectory(localDirectory);
             Console.WriteLine("Synced to clean state.");
 
@@ -758,7 +1044,7 @@ namespace TestLibrary
                             createOrModifyBinaryFile(Path.Combine(localDirectory, filename), length);
                         }
                         // Ensure, all local files are available
-                        Assert.AreEqual(files.Count, Directory.GetFiles(localDirectory).Length);
+                        //Assert.AreEqual(files.Count, Directory.GetFiles(localDirectory).Length);
                         // Sync until all remote files do have got the same content length like the local one
                         Assert.IsTrue(WaitUntilSyncIsDone(synchronizedFolder, delegate {
                             foreach(string filename in files)
@@ -774,7 +1060,7 @@ namespace TestLibrary
                             return true;
                         }));
                         // Check, if all local files are available
-                        Assert.AreEqual(files.Count, Directory.GetFiles(localDirectory).Length);
+                        Assert.AreEqual(files.Count * 2, Directory.GetFiles(localDirectory).Length);
                     }
                 }
             }
@@ -810,6 +1096,7 @@ namespace TestLibrary
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
             CleanDirectory(localDirectory);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
             Console.WriteLine("Synced to clean state.");
 
             // Mock.
@@ -834,6 +1121,10 @@ namespace TestLibrary
                     new CmisRepo.SynchronizedFolder(repoInfo, cmis, activityListener))
                 using (Watcher watcher = new Watcher(localDirectory))
                 {
+                    //ADD !!
+                    FileSystemEventCount count = new FileSystemEventCount();
+                    watcher.ChangeEvent += count.OnFileSystemEvent;
+
                     synchronizedFolder.Sync();
                     CleanAll(localDirectory);
                     WatcherTest.WaitWatcher();
@@ -973,15 +1264,104 @@ namespace TestLibrary
             }
         }
 
+
+        // Goal: Make sure that CmisSync works for remote changes with metadata.
+        [Test, TestCaseSource("TestServers"), Category("Slow")]
+        public void SyncRemoteWithMetadata(string canonical_name, string localPath, string remoteFolderPath,
+            string url, string user, string password, string repositoryId)
+        {
+            // Prepare checkout directory.
+            string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
+            CleanDirectory(localDirectory);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
+            Console.WriteLine("Synced to clean state.");
+
+            // Mock.
+            IActivityListener activityListener = new Mock<IActivityListener>().Object;
+            // Sync.
+            RepoInfo repoInfo = new RepoInfo(
+                    canonical_name,
+                    CMISSYNCDIR,
+                    remoteFolderPath,
+                    url,
+                    user,
+                    password,
+                    repositoryId,
+                    5000,
+                    false,
+                    DateTime.MinValue,
+                    true);
+
+            using (CmisRepo cmis = new CmisRepo(repoInfo, activityListener))
+            {
+                using (CmisRepo.SynchronizedFolder synchronizedFolder =
+                    new CmisRepo.SynchronizedFolder(repoInfo, cmis, activityListener))
+                using (Watcher watcher = new Watcher(localDirectory))
+                {
+                    FileSystemEventCount count = new FileSystemEventCount();
+                    watcher.ChangeEvent += count.OnFileSystemEvent;
+
+                    synchronizedFolder.Sync();
+                    CleanAll(localDirectory);
+                    WatcherTest.WaitWatcher();
+                    synchronizedFolder.Sync();
+                    Console.WriteLine("Synced to clean state.");
+
+                    ISession session = CreateSession(repoInfo);
+                    IFolder folder = (IFolder)session.GetObjectByPath(remoteFolderPath);
+
+                    string name1 = "SyncChangeLog.1";
+                    string path1 = Path.Combine(localDirectory, name1);
+
+                    // set metadatas of the document 
+                    Dictionary<string, object> dico = new Dictionary<string, object>();
+                    List<string> aspects = new List<string> { "P:cm:titled", "P:cm:author" };
+                    dico[PropertyIds.SecondaryObjectTypeIds] = aspects;
+                    dico[PropertyIds.ObjectTypeId] = "cmis:document";
+                    dico["cm:title"] = "Test Sync";
+                    dico["cm:author"] = "Me";
+                    dico["cmis:description"] = "Fichier de Test Sync";
+
+                    //  create document
+                    Console.WriteLine(" Remote create file");
+                    Assert.IsFalse(File.Exists(path1));
+                    IDocument doc1 = CreateDocument(folder, name1, "SyncChangeLog", dico);
+                    Assert.IsTrue(WaitUntilSyncIsDone(synchronizedFolder, delegate {
+                        return File.Exists(path1);
+                    }));
+                    Assert.IsTrue(File.Exists(path1));
+                    Assert.IsTrue(File.Exists(path1 + ".metadata"));
+
+                    // Verify metadatas
+                    GlobalMetaDatas globalMetadatas = GlobalMetaDatas.Load(path1 + ".metadata");
+                    Assert.IsTrue(VerifyProperties(doc1, globalMetadatas));
+
+                    //  delete document
+                    Assert.IsTrue(File.Exists(path1));
+                    doc1.DeleteAllVersions();
+                    Assert.IsTrue(WaitUntilSyncIsDone(synchronizedFolder, delegate {
+                        return !File.Exists(path1);
+                    }));
+                    Assert.IsFalse(File.Exists(path1));
+                    Assert.IsFalse(File.Exists(path1 + ".metadata"));
+
+                    // Clean.
+                    Console.WriteLine("Clean all.");
+                    Clean(localDirectory, synchronizedFolder);
+                }
+            }
+        }
+
+
         // Goal: Make sure that CmisSync works for remote heavy folder changes.
         [Test, TestCaseSource("TestServers"), Category("Slow")]
-        [Ignore]
         public void SyncRemoteHeavyFolder(string canonical_name, string localPath, string remoteFolderPath,
             string url, string user, string password, string repositoryId)
         {
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
             CleanDirectory(localDirectory);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
             Console.WriteLine("Synced to clean state.");
 
             // Mock.
@@ -1551,10 +1931,12 @@ namespace TestLibrary
 
         // Goal: Make sure that CmisSync works for heavy folder.
         [Test, TestCaseSource("TestServers"), Category("Slow")]
-        [Ignore]
         public void SyncEqualityHeavyFolder(string canonical_name, string localPath, string remoteFolderPath,
             string url, string user, string password, string repositoryId)
         {
+            //Clean Remote
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
+
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
             string canonical_name2 = canonical_name + ".equality";
@@ -1590,6 +1972,11 @@ namespace TestLibrary
                     false,
                     DateTime.MinValue,
                     true);
+
+            //Add folders to config
+            ConfigManager.CurrentConfig.AddFolder(repoInfo);
+            ConfigManager.CurrentConfig.AddFolder(repoInfo2); 
+
             using (CmisRepo cmis = new CmisRepo(repoInfo, activityListener))
             using (CmisRepo.SynchronizedFolder synchronizedFolder =
                     new CmisRepo.SynchronizedFolder(repoInfo, cmis, activityListener))
@@ -1673,13 +2060,13 @@ namespace TestLibrary
 
         // Goal: Make sure that CmisSync works for concurrent heavy folder.
         [Test, TestCaseSource("TestServers"), Category("Slow")]
-        [Ignore]
         public void SyncConcurrentHeavyFolder(string canonical_name, string localPath, string remoteFolderPath,
             string url, string user, string password, string repositoryId)
         {
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
             CleanDirectory(localDirectory);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
             Console.WriteLine("Synced to clean state.");
 
             // Mock.
@@ -1704,7 +2091,6 @@ namespace TestLibrary
             {
                 synchronizedFolder.resetFailedOperationsCounter();
                 synchronizedFolder.Sync();
-                CleanAll(localDirectory);
                 WatcherTest.WaitWatcher();
                 synchronizedFolder.Sync();
                 Console.WriteLine("Synced to clean state.");
@@ -1715,9 +2101,9 @@ namespace TestLibrary
                 ISession session = CreateSession(repoInfo);
                 IFolder folder = (IFolder)session.GetObjectByPath(remoteFolderPath);
 
-                string name1 = "SyncConcurrent.1";
+                string name1 = "SyncConcurrent1";
                 string path1 = Path.Combine(localDirectory, name1);
-                string name2 = "SyncConcurrent.2";
+                string name2 = "SyncConcurrent2";
                 string path2 = Path.Combine(localDirectory, name2);
 
                 //  create heavy folder in concurrent
@@ -1781,6 +2167,43 @@ namespace TestLibrary
                 Console.WriteLine("Clean all.");
                 Clean(localDirectory, synchronizedFolder);
             }
+        }
+
+        private void CleanRemote(string url, string user, string password, string repositoryId, string remoteFolderPath)
+        {
+            ISession session = Auth.GetCmisSession(url, user, password, repositoryId);
+            IFolder folder = session.GetObjectByPath(remoteFolderPath) as IFolder;
+            if (folder != null)
+            {
+                foreach (ICmisObject c in folder.GetChildren())
+                {
+                    if (c is IFolder)
+                    {
+                        DeleteRemoteFolder((IFolder)c);
+                    }
+                    else
+                    {
+                        c.Delete(true);
+                    }
+                }
+            }
+            session.Clear();
+        }
+
+        private void DeleteRemoteFolder(IFolder folder)
+        {
+            foreach (ICmisObject c in folder.GetChildren())
+            {
+                if (c is IFolder)
+                {
+                    DeleteRemoteFolder((IFolder)c);
+                }
+                else
+                {
+                    c.Delete(true);
+                }
+            }
+            folder.Delete(true);
         }
 
         [Test, TestCaseSource("TestServers"), Category("Slow")]
@@ -1913,6 +2336,7 @@ namespace TestLibrary
         {
             // Prepare checkout directory.
             string localDirectory = Path.Combine(CMISSYNCDIR, canonical_name);
+            CleanRemote(url, user, password, repositoryId, remoteFolderPath);
             CleanDirectory(localDirectory);
             Console.WriteLine("Synced to clean state.");
 
@@ -2044,7 +2468,6 @@ namespace TestLibrary
         }
 
         [Test, TestCaseSource("TestServers"), Category("Slow")]
-        [Ignore]
         public void DotCmisToIBMConnections(string canonical_name, string localPath, string remoteFolderPath,
             string url, string user, string password, string repositoryId)
         {

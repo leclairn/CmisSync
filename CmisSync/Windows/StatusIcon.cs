@@ -107,6 +107,18 @@ namespace CmisSync
                 }
             };
 
+            //Repo folders
+            Controller.UpdateFoldersEvent += delegate ()
+            {
+                if (IsHandleCreated)
+                {
+                    BeginInvoke((Action)delegate
+                    {
+                        CreateMenu();
+                    });
+                }
+            };
+
             // Status item.
             Controller.UpdateStatusItemEvent += delegate(string state_text)
             {
@@ -164,15 +176,7 @@ namespace CmisSync
             {
                 if (ConfigManager.CurrentConfig.Notifications)
                 {
-                    //Only show balloon tips when notifications are on
-
-                    // SystemSounds.Exclamation.Play(); Disabled because annoying.
-
-                    //trayicon.ShowBalloonTip(25000, title, message, ToolTipIcon.Error);
-
-                    //System.Windows.Forms.MessageBox.Show(message, title,
-                    //    System.Windows.Forms.MessageBoxButtons.OK,
-                    //    System.Windows.Forms.MessageBoxIcon.Error);
+                    
                 }
             };
         }
@@ -453,7 +457,6 @@ namespace CmisSync
                 Controller.RemoteFolderClicked(reponame);
             };
         }
-
 
         /// <summary>
         /// Delegate for suspending sync.

@@ -160,6 +160,17 @@ namespace CmisSync.Lib.Sync
                 string newRemoteBaseName = CmisUtils.GetUpperFolderOfCmisPath(newRemoteName);
                 bool newPathnameWorthSyncing = Utils.WorthSyncing(newDirectory, newFilename, repoInfo);
 
+                    // New Metadata File
+                    string metadataFile = oldPathname + ".metadata";
+                    if (File.Exists(metadataFile))
+                    {
+                        File.Move(metadataFile, newItem.LocalPath + ".metadata");
+                        if (database.ContainsLocalMetadata(metadataFile))
+                            database.MoveMetadataFile(oldItem, newItem);
+                        else
+                            database.AddMetadataFile(newItem);
+                    }
+
                 // Operations.
                 bool rename = oldDirectory.Equals(newDirectory) && !oldFilename.Equals(newFilename);
                 bool move = !oldDirectory.Equals(newDirectory) && oldFilename.Equals(newFilename);
@@ -268,6 +279,16 @@ namespace CmisSync.Lib.Sync
             {
                 SleepWhileSuspended();
                 string localFilename = Path.GetFileName(localPath);
+
+                if (Utils.IsMetadataFile(localPath))
+                {
+                    string docPath = localPath.Remove(localPath.LastIndexOf('.'));
+                    SyncItem syncItem = database.GetSyncItemFromLocalPath(docPath);
+                    if (syncItem == null)
+                        syncItem = SyncItemFactory.CreateFromLocalPath(docPath, false, repoInfo, database);
+                    UpdateMetadatasIfNecessary(syncItem);
+                }
+
                 if (!Utils.WorthSyncing(Path.GetDirectoryName(localPath), localFilename, repoInfo))
                 {
                     return true;
@@ -305,6 +326,7 @@ namespace CmisSync.Lib.Sync
                             if (database.LocalFileHasChanged(localPath))
                             {
                                 success = UpdateFile(localPath, remoteBase);
+                                UpdateMetadata(localPath);
                                 Logger.InfoFormat("Update {0}: {1}", localPath, success);
                             }
                             else
@@ -373,8 +395,42 @@ namespace CmisSync.Lib.Sync
                 // This is not 100% foolproof, as saving can last for more than the grace time, but probably
                 // the best we can do without mind-reading third-party programs.
                 grace.WaitGraceTime();
+                try
+                {
+                    if (Utils.IsMetadataFile(pathname))
+                        // Nothing to do
+                        return true;
 
-                return false; // Perform a sync.
+                    SyncItem item = database.GetSyncItemFromLocalPath(pathname);
+                    if (item == null)
+                        // The item must be in the database
+                        return false;
+
+                    ICmisObject cmisObject = session.GetObjectByPath(item.RemotePath);
+                    if (cmisObject == null)
+                        // the object does not exist on the server so nothing to do
+                        return true;
+
+                    cmisObject.Delete(true);
+
+                    // Folder or File
+                    database.RemoveFolder(item);
+                    database.RemoveFile(item);
+
+                    // Remove metadata if exists
+                    if (File.Exists(pathname + ".metadata"))
+                    {
+                        File.Delete(pathname + ".metadata");
+                        database.RemoveMetadataFile(item);
+                    }
+
+                    return true;
+                }
+                catch (Exception e)
+                {
+                    ProcessRecoverableException("Could Not process Watch Sync Delete : ", e);
+                    return false;
+                }
             }
         }
     }

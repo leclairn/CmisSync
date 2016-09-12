@@ -39,7 +39,15 @@ namespace CmisSync.Lib.Sync
                 // Interval=5 seconds -> every 6 hours -> about every 2160 iterations
                 // Interval=1 hours -> every 3 days -> about every 72 iterations
                 // Thus a good formula is: nb of iterations = 1 + 263907 / (pollInterval + 117)
-                double pollInterval = ConfigManager.CurrentConfig.GetFolder(repoInfo.Name).PollInterval;
+                double pollInterval;
+                try
+                {
+                    pollInterval = ConfigManager.CurrentConfig.GetFolder(repoInfo.Name).PollInterval;
+                }
+                catch(Exception e)
+                {
+                    pollInterval = 5000;
+                }
                 if (changeLogIterationCounter > 263907 / (pollInterval/1000 + 117))
                 {
                     Logger.Debug("It has been a while since the last crawl sync, so launching a crawl sync now.");
@@ -322,10 +330,10 @@ namespace CmisSync.Lib.Sync
 
                         // Go up one level before performing the same thing.
                         remoteSubFolder = remoteSubFolder.Parents[0]; //TODO: Fix Parents[0] for multi-parent repositories
-                        localFolderItem = database.GetFolderSyncItemFromRemotePath(remoteSubFolder.Path);
+                        localFolderItem = database.GetFolderSyncItemFromRemotePath(remoteSubFolder.Path); 
                     };
 
-                    CrawlSync(remoteSubFolder, remoteSubFolder.Path, localFolderItem.LocalPath);
+                    CrawlRemoteFolder(remoteSubFolder, remoteSubFolder.Path, localFolderItem.LocalPath, new List<string>());
                 }
                 else if (cmisObject is DotCMIS.Client.Impl.Document)
                 {
