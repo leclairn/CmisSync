@@ -1211,7 +1211,7 @@ namespace CmisSync.Lib.Sync
                 // Use Extractor 
                 try
                 {
-                    ConsoleApplication1.Program prog = new ConsoleApplication1.Program(syncItem.LocalPath);
+                    Extractors.Program prog = new Extractors.Program(syncItem.LocalPath);
                     Thread thread = new Thread(new ThreadStart(prog.DoWork));
                     thread.SetApartmentState(ApartmentState.STA);
                     thread.Start();

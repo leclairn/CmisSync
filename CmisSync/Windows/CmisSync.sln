@@ -6,9 +6,6 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmisSync", "CmisSync.csproj", "{728483AA-E34B-4441-BF2C-C8BC2901E4E0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmisSync.Lib", "..\..\CmisSync.Lib\CmisSync.Lib.csproj", "{2C914413-B31C-4362-93C7-1AE34F09112A}"
-	ProjectSection(ProjectDependencies) = postProject
-		{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062} = {FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}
-	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestLibrary", "..\TestLibrary\TestLibrary.csproj", "{295D2B18-B6EB-4EF4-9862-4E3C0C383888}"
 EndProject
@@ -26,9 +23,9 @@ Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "Installer", "Installer\Inst
 EndProject
 Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "InstallerBootstrapper", "InstallerBootstrapper\InstallerBootstrapper.wixproj", "{419109DB-39AB-4A87-9224-3A79277EEDA1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApplication1", "..\..\DataSync\ConsoleApplication1\ConsoleApplication1.csproj", "{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}"
-EndProject
 Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "FidusyncSetup", "FidusyncSetup\FidusyncSetup.vdproj", "{BAECAD0C-883F-4D10-873F-98ACCDD363B9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Extractors", "..\..\DataSync\Extractors\Extractors.csproj", "{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -132,6 +129,12 @@ Global
 		{419109DB-39AB-4A87-9224-3A79277EEDA1}.Release|Any CPU.ActiveCfg = Release|x86
 		{419109DB-39AB-4A87-9224-3A79277EEDA1}.Release|Mixed Platforms.ActiveCfg = Release|x86
 		{419109DB-39AB-4A87-9224-3A79277EEDA1}.Release|x86.ActiveCfg = Release|x86
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Debug|Any CPU.ActiveCfg = Debug
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Debug|Mixed Platforms.ActiveCfg = Debug
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Debug|x86.ActiveCfg = Debug
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Release|Any CPU.ActiveCfg = Release
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Release|Mixed Platforms.ActiveCfg = Release
+		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Release|x86.ActiveCfg = Release
 		{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
@@ -144,12 +147,6 @@ Global
 		{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}.Release|x86.ActiveCfg = Release|Any CPU
 		{FC12E686-CEF0-42A1-9B8C-BAAED2CBF062}.Release|x86.Build.0 = Release|Any CPU
-		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Debug|Any CPU.ActiveCfg = Debug
-		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Debug|Mixed Platforms.ActiveCfg = Debug
-		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Debug|x86.ActiveCfg = Debug
-		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Release|Any CPU.ActiveCfg = Release
-		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Release|Mixed Platforms.ActiveCfg = Release
-		{BAECAD0C-883F-4D10-873F-98ACCDD363B9}.Release|x86.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
